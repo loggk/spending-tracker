@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import * as cdk from 'aws-cdk-lib';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import type * as cognito from 'aws-cdk-lib/aws-cognito';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
@@ -26,7 +27,13 @@ export class ApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
+    // Routes require a valid Cognito ID token unless they opt out explicitly.
+    const authorizer = new HttpUserPoolAuthorizer('UserPoolAuthorizer', props.userPool, {
+      userPoolClients: [props.userPoolClient],
+    });
+
     this.httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
+      defaultAuthorizer: authorizer,
       corsPreflight: {
         allowOrigins: ['http://localhost:5173'],
         allowMethods: [
@@ -41,14 +48,22 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    const health = this.createHandler('Health', 'health.ts');
-
     // Unauthenticated on purpose: lets us verify the deploy pipeline end to end
     // without needing a signed-in user.
     this.httpApi.addRoutes({
       path: '/health',
       methods: [apigwv2.HttpMethod.GET],
-      integration: new HttpLambdaIntegration('HealthIntegration', health),
+      integration: new HttpLambdaIntegration(
+        'HealthIntegration',
+        this.createHandler('Health', 'health.ts'),
+      ),
+      authorizer: new apigwv2.HttpNoneAuthorizer(),
+    });
+
+    this.httpApi.addRoutes({
+      path: '/me',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: new HttpLambdaIntegration('MeIntegration', this.createHandler('Me', 'me.ts')),
     });
 
     new cdk.CfnOutput(this, 'ApiUrl', { value: this.httpApi.apiEndpoint });
