@@ -66,10 +66,38 @@ export class ApiStack extends cdk.Stack {
       integration: new HttpLambdaIntegration('MeIntegration', this.createHandler('Me', 'me.ts')),
     });
 
+    // One function per resource, dispatching internally on the route key. Each
+    // gets least-privilege access to only the table.
+    for (const resource of ['transactions', 'categories'] as const) {
+      const id = resource === 'transactions' ? 'Transactions' : 'Categories';
+      const fn = this.createHandler(id, `${resource}.ts`, {
+        TABLE_NAME: props.table.tableName,
+      });
+      props.table.grantReadWriteData(fn);
+
+      const integration = new HttpLambdaIntegration(`${id}Integration`, fn);
+
+      this.httpApi.addRoutes({
+        path: `/${resource}`,
+        methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+        integration,
+      });
+
+      this.httpApi.addRoutes({
+        path: `/${resource}/{id}`,
+        methods: [apigwv2.HttpMethod.PUT, apigwv2.HttpMethod.DELETE],
+        integration,
+      });
+    }
+
     new cdk.CfnOutput(this, 'ApiUrl', { value: this.httpApi.apiEndpoint });
   }
 
-  private createHandler(id: string, entryFile: string): NodejsFunction {
+  private createHandler(
+    id: string,
+    entryFile: string,
+    environment: Record<string, string> = {},
+  ): NodejsFunction {
     return new NodejsFunction(this, `${id}Fn`, {
       entry: path.join(HANDLERS_DIR, entryFile),
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -77,7 +105,7 @@ export class ApiStack extends cdk.Stack {
       memorySize: 512,
       timeout: cdk.Duration.seconds(10),
       bundling: { format: OutputFormat.ESM, minify: true, sourceMap: true },
-      environment: { NODE_OPTIONS: '--enable-source-maps' },
+      environment: { NODE_OPTIONS: '--enable-source-maps', ...environment },
       logGroup: new logs.LogGroup(this, `${id}Logs`, {
         retention: logs.RetentionDays.ONE_MONTH,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
