@@ -4,22 +4,12 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CATEGORY_COLORS } from '@/lib/palette';
 import { useCategories, useCreateCategory, useDeleteCategory } from '@/lib/queries';
-
-const PALETTE = [
-  '#ef4444',
-  '#f97316',
-  '#eab308',
-  '#22c55e',
-  '#14b8a6',
-  '#3b82f6',
-  '#8b5cf6',
-  '#ec4899',
-];
 
 export function Categories() {
   const [name, setName] = useState('');
-  const [color, setColor] = useState(PALETTE[3] ?? '#22c55e');
+  const [color, setColor] = useState<string>(CATEGORY_COLORS[0]);
 
   const categories = useCategories();
   const createCategory = useCreateCategory();
@@ -79,7 +69,7 @@ export function Categories() {
         <div className="grid gap-1.5">
           <span className="text-xs text-muted-foreground">Color</span>
           <div className="flex gap-1.5">
-            {PALETTE.map((swatch) => (
+            {CATEGORY_COLORS.map((swatch) => (
               <button
                 key={swatch}
                 type="button"
