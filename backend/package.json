@@ -9,7 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@spending-tracker/shared": "*"
+    "@aws-sdk/client-dynamodb": "^3.1102.0",
+    "@aws-sdk/lib-dynamodb": "^3.1102.0",
+    "@spending-tracker/shared": "*",
+    "ulid": "^2.4.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.162",
