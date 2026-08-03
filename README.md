@@ -39,15 +39,15 @@ Fully serverless on AWS, defined end-to-end with the AWS CDK:
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | React + TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Recharts |
-| API | Amazon API Gateway (HTTP API) + AWS Lambda (Node.js, TypeScript) |
-| Auth | Amazon Cognito (JWT authorizer) |
-| Database | Amazon DynamoDB (single-table design) |
-| AI | Amazon Bedrock (Claude) for receipt parsing |
-| Infrastructure | AWS CDK (TypeScript) |
-| Monitoring | Amazon CloudWatch |
+| Layer          | Technology                                                                  |
+| -------------- | --------------------------------------------------------------------------- |
+| Frontend       | React + TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Recharts |
+| API            | Amazon API Gateway (HTTP API) + AWS Lambda (Node.js, TypeScript)            |
+| Auth           | Amazon Cognito (JWT authorizer)                                             |
+| Database       | Amazon DynamoDB (single-table design)                                       |
+| AI             | Amazon Bedrock (Claude) for receipt parsing                                 |
+| Infrastructure | AWS CDK (TypeScript)                                                        |
+| Monitoring     | Amazon CloudWatch                                                           |
 
 ## Repository Layout
 
@@ -60,4 +60,52 @@ shared/     Types shared between frontend and backend
 
 ## Getting Started
 
-_Setup instructions coming as the project takes shape._
+### Prerequisites
+
+- Node.js 20+
+- An AWS account with the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
+- Access to Anthropic Claude models in Amazon Bedrock (used by the receipt parser)
+
+### AWS credentials
+
+This project authenticates through IAM Identity Center, so no long-lived access keys
+are stored on disk. Configure a profile once:
+
+```bash
+aws configure sso
+```
+
+Use `us-east-1` as both the SSO region and the CLI default region, and name the
+profile `spending-tracker`. Then export it for your shell session:
+
+```bash
+export AWS_PROFILE=spending-tracker
+```
+
+Credentials are short-lived. Refresh them whenever commands start failing on auth:
+
+```bash
+aws sso login
+```
+
+### Install and bootstrap
+
+```bash
+npm install
+npx cdk bootstrap
+```
+
+`cdk bootstrap` provisions the deployment resources CDK needs in your account, and
+only has to run once per account and region.
+
+### Common commands
+
+| Command                   | Description                   |
+| ------------------------- | ----------------------------- |
+| `npm run dev`             | Start the frontend dev server |
+| `npm run build`           | Build all workspaces          |
+| `npm run typecheck`       | Type-check all workspaces     |
+| `npm run lint`            | Lint the repository           |
+| `npm run format`          | Format with Prettier          |
+| `npm test`                | Run the test suites           |
+| `npm run deploy -w infra` | Deploy all CDK stacks         |
