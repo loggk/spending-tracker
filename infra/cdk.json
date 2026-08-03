@@ -1,14 +1,8 @@
 {
   "app": "npx tsx bin/app.ts",
   "watch": {
-    "include": [
-      "bin/**",
-      "lib/**"
-    ],
-    "exclude": [
-      "**/*.d.ts",
-      "node_modules"
-    ]
+    "include": ["bin/**", "lib/**"],
+    "exclude": ["**/*.d.ts", "node_modules"]
   },
   "context": {
     "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,
@@ -91,10 +85,7 @@
     "@aws-cdk/core:enablePartitionLiterals": true,
     "@aws-cdk/core:explicitStackTags": true,
     "@aws-cdk/core:includePrefixInUniqueNameGeneration": true,
-    "@aws-cdk/core:target-partitions": [
-      "aws",
-      "aws-cn"
-    ],
+    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"],
     "@aws-cdk/core:validateAgainstDefaultRules": true,
     "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
     "@aws-cdk/custom-resources:logApiResponseDataPropertyTrueDefault": false,
