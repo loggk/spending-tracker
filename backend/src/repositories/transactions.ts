@@ -6,7 +6,7 @@ import {
   TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import type { Transaction } from '@spending-tracker/shared';
-import { ulid } from 'ulid';
+import { createId } from '../lib/id';
 import { documentClient, tableName } from '../lib/dynamo';
 import {
   parseTransactionId,
@@ -46,14 +46,14 @@ const toTransaction = ({
 
 function buildItem(
   userId: string,
-  ulidPart: string,
+  suffix: string,
   input: TransactionInput,
   createdAt: string,
 ): TransactionItem {
   return {
     pk: userPk(userId),
-    sk: transactionSk(input.date, ulidPart),
-    id: transactionId(input.date, ulidPart),
+    sk: transactionSk(input.date, suffix),
+    id: transactionId(input.date, suffix),
     ...input,
     createdAt,
   };
@@ -89,7 +89,7 @@ export async function createTransaction(
   userId: string,
   input: TransactionInput,
 ): Promise<Transaction> {
-  const item = buildItem(userId, ulid(), input, new Date().toISOString());
+  const item = buildItem(userId, createId(), input, new Date().toISOString());
 
   await documentClient.send(new PutCommand({ TableName: tableName(), Item: item }));
 
@@ -105,7 +105,7 @@ export async function getTransaction(userId: string, id: string): Promise<Transa
   const { Item } = await documentClient.send(
     new GetCommand({
       TableName: tableName(),
-      Key: { pk: userPk(userId), sk: transactionSk(parsed.date, parsed.ulid) },
+      Key: { pk: userPk(userId), sk: transactionSk(parsed.date, parsed.suffix) },
     }),
   );
 
@@ -134,7 +134,7 @@ export async function updateTransaction(
     return null;
   }
 
-  const item = buildItem(userId, parsed.ulid, input, existing.createdAt);
+  const item = buildItem(userId, parsed.suffix, input, existing.createdAt);
 
   if (input.date === parsed.date) {
     await documentClient.send(new PutCommand({ TableName: tableName(), Item: item }));
@@ -147,7 +147,7 @@ export async function updateTransaction(
         {
           Delete: {
             TableName: tableName(),
-            Key: { pk: userPk(userId), sk: transactionSk(parsed.date, parsed.ulid) },
+            Key: { pk: userPk(userId), sk: transactionSk(parsed.date, parsed.suffix) },
           },
         },
         { Put: { TableName: tableName(), Item: item } },
@@ -168,7 +168,7 @@ export async function deleteTransaction(userId: string, id: string): Promise<boo
   const { Attributes } = await documentClient.send(
     new DeleteCommand({
       TableName: tableName(),
-      Key: { pk: userPk(userId), sk: transactionSk(parsed.date, parsed.ulid) },
+      Key: { pk: userPk(userId), sk: transactionSk(parsed.date, parsed.suffix) },
       ReturnValues: 'ALL_OLD',
     }),
   );

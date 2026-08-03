@@ -1,6 +1,6 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import type { Category } from '@spending-tracker/shared';
-import { ulid } from 'ulid';
+import { createId } from '../lib/id';
 import { documentClient, tableName } from '../lib/dynamo';
 import { CATEGORY_PREFIX, categorySk, userPk } from '../lib/keys';
 import type { CategoryInput } from '../lib/validation';
@@ -36,7 +36,7 @@ export async function listCategories(userId: string): Promise<Category[]> {
 export async function createCategory(userId: string, input: CategoryInput): Promise<Category> {
   const item: CategoryItem = {
     pk: userPk(userId),
-    sk: categorySk(ulid()),
+    sk: categorySk(createId()),
     id: '',
     ...input,
     createdAt: new Date().toISOString(),
