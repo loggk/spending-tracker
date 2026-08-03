@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const links = [
-  { to: '/', label: 'Transactions' },
+  { to: '/', label: 'Dashboard' },
+  { to: '/transactions', label: 'Transactions' },
   { to: '/categories', label: 'Categories' },
 ];
 

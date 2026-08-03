@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/auth/ProtectedRoute';
 import { AppLayout } from '@/components/AppLayout';
 import { Toaster } from '@/components/ui/sonner';
 import { Categories } from '@/pages/Categories';
+import { Dashboard } from '@/pages/Dashboard';
 import { SignIn } from '@/pages/SignIn';
 import { SignUp } from '@/pages/SignUp';
 import { Transactions } from '@/pages/Transactions';
@@ -25,7 +26,8 @@ function App() {
             <Route path="/sign-up" element={<SignUp />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
-                <Route path="/" element={<Transactions />} />
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/transactions" element={<Transactions />} />
                 <Route path="/categories" element={<Categories />} />
               </Route>
             </Route>
