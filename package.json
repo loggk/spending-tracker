@@ -1,0 +1,30 @@
+{
+  "name": "spending-tracker",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Serverless personal spending tracker on AWS",
+  "workspaces": [
+    "shared",
+    "frontend",
+    "backend",
+    "infra"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace frontend",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "oxlint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "oxlint": "^1.77.0",
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2"
+  }
+}
