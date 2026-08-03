@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# CDK
+cdk.out/
+.cdk.staging/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Test coverage
+coverage/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local scratch notes
+plan.md
