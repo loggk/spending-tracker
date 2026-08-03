@@ -7,46 +7,46 @@
  * secondary index.
  *
  * Because the date is part of a transaction's sort key, its public id carries
- * both parts (`<date>_<ulid>`). That keeps the id a complete, URL-safe handle:
+ * both parts (`<date>_<suffix>`). That keeps the id a complete, URL-safe handle:
  * clients pass it back verbatim and the server can locate the row from it alone.
  */
 
 export const TRANSACTION_PREFIX = 'TXN#';
 export const CATEGORY_PREFIX = 'CAT#';
 
-/** Sorts after any character a date or ULID can contain. */
+/** Sorts after any character a date or id suffix can contain. */
 const HIGH_CHAR = '￿';
 
 export const userPk = (userId: string): string => `USER#${userId}`;
 
 export const categorySk = (id: string): string => `${CATEGORY_PREFIX}${id}`;
 
-export const transactionId = (date: string, ulid: string): string => `${date}_${ulid}`;
+export const transactionId = (date: string, suffix: string): string => `${date}_${suffix}`;
 
-export const transactionSk = (date: string, ulid: string): string =>
-  `${TRANSACTION_PREFIX}${date}#${ulid}`;
+export const transactionSk = (date: string, suffix: string): string =>
+  `${TRANSACTION_PREFIX}${date}#${suffix}`;
 
 /** Splits a public transaction id, returning null if it is malformed. */
-export function parseTransactionId(id: string): { date: string; ulid: string } | null {
+export function parseTransactionId(id: string): { date: string; suffix: string } | null {
   const separator = id.indexOf('_');
   if (separator <= 0 || separator === id.length - 1) {
     return null;
   }
 
   const date = id.slice(0, separator);
-  const ulid = id.slice(separator + 1);
+  const suffix = id.slice(separator + 1);
 
-  if (ulid.includes('#') || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (suffix.includes('#') || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return null;
   }
 
-  return { date, ulid };
+  return { date, suffix };
 }
 
 /** Sort key for a public transaction id, or null if the id is malformed. */
 export function transactionSkFromId(id: string): string | null {
   const parsed = parseTransactionId(id);
-  return parsed && transactionSk(parsed.date, parsed.ulid);
+  return parsed && transactionSk(parsed.date, parsed.suffix);
 }
 
 /**

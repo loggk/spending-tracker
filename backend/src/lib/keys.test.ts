@@ -28,7 +28,7 @@ describe('transaction ids', () => {
   it('round-trips through the public id', () => {
     const id = transactionId('2026-01-15', '01ABCDEF');
 
-    expect(parseTransactionId(id)).toEqual({ date: '2026-01-15', ulid: '01ABCDEF' });
+    expect(parseTransactionId(id)).toEqual({ date: '2026-01-15', suffix: '01ABCDEF' });
     expect(transactionSkFromId(id)).toBe(transactionSk('2026-01-15', '01ABCDEF'));
   });
 
@@ -41,7 +41,7 @@ describe('transaction ids', () => {
   it.each([
     ['no separator', '2026011501ABC'],
     ['empty date', '_01ABC'],
-    ['empty ulid', '2026-01-15_'],
+    ['empty suffix', '2026-01-15_'],
     ['malformed date', 'jan-2026_01ABC'],
     ['key injection via #', '2026-01-15_01#ABC'],
   ])('rejects a malformed id: %s', (_label, id) => {
