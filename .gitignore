@@ -23,6 +23,7 @@ coverage/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+.claude/
 
 # Local scratch notes
 plan.md

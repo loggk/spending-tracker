@@ -98,6 +98,22 @@ npx cdk bootstrap
 `cdk bootstrap` provisions the deployment resources CDK needs in your account, and
 only has to run once per account and region.
 
+### Deploy and configure the frontend
+
+Deploy the stacks, then point the frontend at them:
+
+```bash
+npm run deploy -w infra
+cp frontend/.env.example frontend/.env
+```
+
+Fill in `frontend/.env` with the values printed as stack outputs — `UserPoolId`,
+`UserPoolClientId`, and `ApiUrl`. Then start the dev server:
+
+```bash
+npm run dev
+```
+
 ### Common commands
 
 | Command                   | Description                   |
