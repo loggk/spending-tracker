@@ -35,6 +35,7 @@ export class DataAuthStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      eventBridgeEnabled: true,
       cors: [
         {
           allowedMethods: [s3.HttpMethods.PUT],
