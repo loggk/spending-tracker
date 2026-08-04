@@ -2,14 +2,20 @@ const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: '
 
 export const formatAmount = (cents: number): string => currency.format(cents / 100);
 
-/** Parses user input like "12.99" or "$1,299" into integer cents. */
+/**
+ * Parses user input like "12.99", "$1,299" or the accounting form "(12.99)",
+ * which spreadsheets use for negatives, into integer cents.
+ */
 export function parseAmountToCents(input: string): number | null {
-  const cleaned = input.replace(/[$,\s]/g, '');
+  const trimmed = input.trim();
+  const parenthesised = /^\(.*\)$/.test(trimmed);
+  const cleaned = (parenthesised ? trimmed.slice(1, -1) : trimmed).replace(/[$,\s]/g, '');
+
   if (!/^-?\d*\.?\d{0,2}$/.test(cleaned) || cleaned === '' || cleaned === '-') {
     return null;
   }
 
-  const cents = Math.round(Number(cleaned) * 100);
+  const cents = Math.round(Number(cleaned) * 100) * (parenthesised ? -1 : 1);
   return Number.isFinite(cents) && cents !== 0 ? cents : null;
 }
 
