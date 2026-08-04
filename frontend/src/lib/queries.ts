@@ -41,8 +41,8 @@ export function useCategories() {
 }
 
 /** Transaction lists are cached per query, so any write invalidates all of them. */
-function useTransactionMutation<TVariables>(
-  mutationFn: (variables: TVariables) => Promise<unknown>,
+function useTransactionMutation<TVariables, TData>(
+  mutationFn: (variables: TVariables) => Promise<TData>,
 ) {
   const queryClient = useQueryClient();
 
@@ -57,6 +57,21 @@ export const useCreateTransaction = () =>
     apiFetch<Transaction>('/transactions', { method: 'POST', body: JSON.stringify(input) }),
   );
 
+/** The API caps a batch at 500, so a larger import is sent as several requests. */
+const IMPORT_CHUNK_SIZE = 500;
+
+export const useImportTransactions = () =>
+  useTransactionMutation(async (transactions: CreateTransactionRequest[]) => {
+    for (let start = 0; start < transactions.length; start += IMPORT_CHUNK_SIZE) {
+      await apiFetch('/transactions/batch', {
+        method: 'POST',
+        body: JSON.stringify({
+          transactions: transactions.slice(start, start + IMPORT_CHUNK_SIZE),
+        }),
+      });
+    }
+  });
+
 export const useUpdateTransaction = () =>
   useTransactionMutation(({ id, ...input }: CreateTransactionRequest & { id: string }) =>
     apiFetch<Transaction>(`/transactions/${encodeURIComponent(id)}`, {
@@ -70,7 +85,9 @@ export const useDeleteTransaction = () =>
     apiFetch<void>(`/transactions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   );
 
-function useCategoryMutation<TVariables>(mutationFn: (variables: TVariables) => Promise<unknown>) {
+function useCategoryMutation<TVariables, TData>(
+  mutationFn: (variables: TVariables) => Promise<TData>,
+) {
   const queryClient = useQueryClient();
 
   return useMutation({
