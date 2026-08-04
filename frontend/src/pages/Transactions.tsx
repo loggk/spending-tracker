@@ -3,6 +3,7 @@ import type { Category, Transaction } from '@spending-tracker/shared';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CategorySelect } from '@/components/CategorySelect';
+import { ImportDialog } from '@/components/ImportDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { toCsv } from '@/lib/csv';
+import { downloadTextFile } from '@/lib/download';
 import { formatAmount, formatDate, parseAmountToCents, today } from '@/lib/format';
 import {
   useCategories,
@@ -28,6 +31,7 @@ const emptyDraft = () => ({ date: today(), amount: '', description: '', category
 export function Transactions() {
   const [draft, setDraft] = useState(emptyDraft);
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const transactions = useTransactions();
   const categories = useCategories();
@@ -68,6 +72,14 @@ export function Transactions() {
     );
   }
 
+  function handleExport() {
+    downloadTextFile(
+      `spending-${today()}.csv`,
+      toCsv(rows, categoryList),
+      'text/csv;charset=utf-8',
+    );
+  }
+
   function handleDelete(transaction: Transaction) {
     deleteTransaction.mutate(transaction.id, {
       onSuccess: () => toast.success('Transaction deleted'),
@@ -92,13 +104,23 @@ export function Transactions() {
 
   return (
     <div className="grid gap-6">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
-        {rows.length > 0 && (
-          <p className="text-sm text-muted-foreground">
-            {rows.length} {rows.length === 1 ? 'entry' : 'entries'} · {formatAmount(total)}
-          </p>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
+          {rows.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {rows.length} {rows.length === 1 ? 'entry' : 'entries'} · {formatAmount(total)}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImporting(true)}>
+            Import CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={rows.length === 0}>
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <form
@@ -199,6 +221,12 @@ export function Transactions() {
             </Table>
           </div>
         ))}
+
+      <ImportDialog
+        open={importing}
+        categories={categoryList}
+        onClose={() => setImporting(false)}
+      />
 
       <EditTransactionDialog
         transaction={editing}
