@@ -3,11 +3,13 @@ import { errorResponse, jsonResponse } from '../lib/http';
 import { router } from '../lib/router';
 import {
   createTransaction,
+  createTransactions,
   deleteTransaction,
   listTransactions,
   updateTransaction,
 } from '../repositories/transactions';
 import {
+  batchTransactionsSchema,
   listTransactionsQuerySchema,
   parseBody,
   parseInput,
@@ -27,6 +29,13 @@ export const handler = router({
     const input = parseBody(transactionInputSchema, event.body);
 
     return jsonResponse(201, await createTransaction(userId, input));
+  },
+
+  'POST /transactions/batch': async (event) => {
+    const { userId } = getAuthenticatedUser(event);
+    const { transactions } = parseBody(batchTransactionsSchema, event.body);
+
+    return jsonResponse(201, { transactions: await createTransactions(userId, transactions) });
   },
 
   'PUT /transactions/{id}': async (event) => {

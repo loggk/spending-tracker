@@ -1,4 +1,5 @@
 import {
+  BatchWriteCommand,
   DeleteCommand,
   GetCommand,
   PutCommand,
@@ -94,6 +95,52 @@ export async function createTransaction(
   await documentClient.send(new PutCommand({ TableName: tableName(), Item: item }));
 
   return toTransaction(item);
+}
+
+/** DynamoDB accepts at most 25 writes per batch. */
+const BATCH_SIZE = 25;
+const MAX_BATCH_ATTEMPTS = 4;
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Writes many transactions, used by CSV import. DynamoDB can decline part of a
+ * batch under load rather than failing it, so unprocessed items are retried with
+ * a widening backoff before the whole request is reported as failed.
+ */
+export async function createTransactions(
+  userId: string,
+  inputs: TransactionInput[],
+): Promise<Transaction[]> {
+  const createdAt = new Date().toISOString();
+  const items = inputs.map((input) => buildItem(userId, createId(), input, createdAt));
+
+  for (let start = 0; start < items.length; start += BATCH_SIZE) {
+    await writeBatch(items.slice(start, start + BATCH_SIZE));
+  }
+
+  return items.map(toTransaction);
+}
+
+async function writeBatch(items: TransactionItem[]): Promise<void> {
+  const table = tableName();
+  let pending = items.map((Item) => ({ PutRequest: { Item } }));
+
+  for (let attempt = 0; attempt < MAX_BATCH_ATTEMPTS; attempt += 1) {
+    const { UnprocessedItems } = await documentClient.send(
+      new BatchWriteCommand({ RequestItems: { [table]: pending } }),
+    );
+
+    const remaining = UnprocessedItems?.[table] ?? [];
+    if (remaining.length === 0) {
+      return;
+    }
+
+    pending = remaining as typeof pending;
+    await delay(2 ** attempt * 50);
+  }
+
+  throw new Error(`${pending.length} transactions could not be written`);
 }
 
 export async function getTransaction(userId: string, id: string): Promise<Transaction | null> {

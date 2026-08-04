@@ -88,6 +88,16 @@ export class ApiStack extends cdk.Stack {
         methods: [apigwv2.HttpMethod.PUT, apigwv2.HttpMethod.DELETE],
         integration,
       });
+
+      // Bulk create for CSV import. The literal path is matched ahead of
+      // /transactions/{id}, so it never collides with a single-item route.
+      if (resource === 'transactions') {
+        this.httpApi.addRoutes({
+          path: '/transactions/batch',
+          methods: [apigwv2.HttpMethod.POST],
+          integration,
+        });
+      }
     }
 
     new cdk.CfnOutput(this, 'ApiUrl', { value: this.httpApi.apiEndpoint });
