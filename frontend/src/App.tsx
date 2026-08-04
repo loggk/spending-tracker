@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/AppLayout';
 import { Toaster } from '@/components/ui/sonner';
 import { Categories } from '@/pages/Categories';
 import { Dashboard } from '@/pages/Dashboard';
+import { Receipts } from '@/pages/Receipts';
 import { SignIn } from '@/pages/SignIn';
 import { SignUp } from '@/pages/SignUp';
 import { Transactions } from '@/pages/Transactions';
@@ -28,6 +29,7 @@ function App() {
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/transactions" element={<Transactions />} />
+                <Route path="/receipts" element={<Receipts />} />
                 <Route path="/categories" element={<Categories />} />
               </Route>
             </Route>

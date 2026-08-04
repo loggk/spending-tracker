@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   Category,
   CreateCategoryRequest,
+  CreateReceiptResponse,
   CreateTransactionRequest,
   ListCategoriesResponse,
   ListTransactionsQuery,
   ListTransactionsResponse,
+  Receipt,
   Transaction,
 } from '@spending-tracker/shared';
 import { apiFetch } from './api';
@@ -84,6 +86,56 @@ export const useDeleteTransaction = () =>
   useTransactionMutation((id: string) =>
     apiFetch<void>(`/transactions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   );
+
+/** Polls while the model works; stops as soon as the receipt settles. */
+export function useReceipt(receiptId: string | null) {
+  return useQuery({
+    queryKey: ['receipt', receiptId],
+    enabled: receiptId !== null,
+    queryFn: () => apiFetch<Receipt>(`/receipts/${encodeURIComponent(receiptId ?? '')}`),
+    refetchInterval: (query) => (query.state.data?.status === 'processing' ? 2000 : false),
+  });
+}
+
+/**
+ * Asks the API for an upload URL, then sends the image straight to S3. The PUT
+ * carries no auth header — the signature in the URL is the authorisation, and
+ * adding one would break it.
+ */
+export function useUploadReceipt() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const { receiptId, uploadUrl } = await apiFetch<CreateReceiptResponse>('/receipts', {
+        method: 'POST',
+      });
+
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'content-type': file.type },
+      });
+
+      if (!response.ok) {
+        throw new Error('Could not upload the image');
+      }
+
+      return receiptId;
+    },
+  });
+}
+
+export function useConfirmReceipt() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ receiptId, items }: { receiptId: string; items: CreateTransactionRequest[] }) =>
+      apiFetch(`/receipts/${encodeURIComponent(receiptId)}/confirm`, {
+        method: 'POST',
+        body: JSON.stringify({ items }),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+  });
+}
 
 function useCategoryMutation<TVariables, TData>(
   mutationFn: (variables: TVariables) => Promise<TData>,
