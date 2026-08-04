@@ -13,6 +13,7 @@
 
 export const TRANSACTION_PREFIX = 'TXN#';
 export const CATEGORY_PREFIX = 'CAT#';
+export const RECEIPT_PREFIX = 'RCPT#';
 
 /** Sorts after any character a date or id suffix can contain. */
 const HIGH_CHAR = '￿';
@@ -20,6 +21,8 @@ const HIGH_CHAR = '￿';
 export const userPk = (userId: string): string => `USER#${userId}`;
 
 export const categorySk = (id: string): string => `${CATEGORY_PREFIX}${id}`;
+
+export const receiptSk = (id: string): string => `${RECEIPT_PREFIX}${id}`;
 
 export const transactionId = (date: string, suffix: string): string => `${date}_${suffix}`;
 

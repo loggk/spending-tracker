@@ -29,6 +29,11 @@ export const categoryInputSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Color must be a hex value like #22c55e'),
 });
 
+/** Line items the user reviewed and accepted from a parsed receipt. */
+export const confirmReceiptSchema = z.object({
+  items: z.array(transactionInputSchema).min(1, 'Select at least one item').max(100),
+});
+
 /** Bounded so one import request stays within the Lambda's payload and timeout. */
 export const batchTransactionsSchema = z.object({
   transactions: z.array(transactionInputSchema).min(1, 'No transactions to import').max(500),
