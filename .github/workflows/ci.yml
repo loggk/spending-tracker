@@ -1,8 +1,8 @@
 name: CI
 
+# Pushes to main are verified by the deploy workflow instead, so a merge does
+# not run the same checks twice.
 on:
-  push:
-    branches: [main]
   pull_request:
 
 # A newer push to the same branch makes an in-flight run obsolete.
@@ -15,35 +15,4 @@ permissions:
 
 jobs:
   verify:
-    name: Verify
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          # Matches the Lambda runtime the backend is deployed on.
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Test
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      # Catches infrastructure errors without needing AWS credentials.
-      - name: Synthesize CDK stacks
-        run: npm run synth -w infra
+    uses: ./.github/workflows/verify.yml

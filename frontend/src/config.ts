@@ -10,5 +10,8 @@ export const config = {
   region: required('VITE_AWS_REGION'),
   userPoolId: required('VITE_USER_POOL_ID'),
   userPoolClientId: required('VITE_USER_POOL_CLIENT_ID'),
-  apiUrl: required('VITE_API_URL').replace(/\/$/, ''),
+  // CloudFront serves the API from the same origin as the app, so a deployed
+  // build needs no host at all. The dev server has no such proxy in front of it
+  // and calls API Gateway directly.
+  apiUrl: import.meta.env.PROD ? '/api' : required('VITE_API_URL').replace(/\/$/, ''),
 };

@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two runs updating the same stacks would fight over CloudFormation, and
+# cancelling one mid-deploy is worse than queueing it.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+
+  deploy:
+    name: Deploy
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Lets the job mint the OIDC token that AWS exchanges for credentials.
+      # Nothing long-lived is stored in the repository.
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Assume the deploy role
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # The frontend compiles the Cognito ids into its bundle, so the stacks
+      # that own them go out first and their outputs configure the build.
+      - name: Deploy data and API stacks
+        working-directory: infra
+        run: |
+          npx cdk deploy SpendingTracker-DataAuth SpendingTracker-Api \
+            --require-approval never \
+            --outputs-file outputs.json
+
+      - name: Configure the frontend
+        run: |
+          {
+            echo "VITE_AWS_REGION=$AWS_REGION"
+            echo "VITE_USER_POOL_ID=$(jq -r '."SpendingTracker-DataAuth".UserPoolId' infra/outputs.json)"
+            echo "VITE_USER_POOL_CLIENT_ID=$(jq -r '."SpendingTracker-DataAuth".UserPoolClientId' infra/outputs.json)"
+            echo "VITE_API_URL=$(jq -r '."SpendingTracker-Api".ApiUrl' infra/outputs.json)"
+          } > frontend/.env
+
+      - name: Build the frontend
+        run: npm run build -w frontend
+
+      - name: Deploy the web stack
+        working-directory: infra
+        run: npx cdk deploy SpendingTracker-Web --require-approval never

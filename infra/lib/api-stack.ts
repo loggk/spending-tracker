@@ -13,12 +13,19 @@ import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
 import type { Construct } from 'constructs';
+import { Monitoring } from './monitoring';
 
 /**
  * Inference profile rather than a bare model id — Bedrock rejects bare ids for
  * current Claude models. Verified available in us-east-1.
  */
 const BEDROCK_MODEL_ID = 'us.anthropic.claude-sonnet-4-6';
+
+/**
+ * Named rather than `$default` so the stage prefix API Gateway expects is the
+ * same path CloudFront routes on, and no rewriting sits between them.
+ */
+export const API_STAGE_NAME = 'api';
 
 const HANDLERS_DIR = path.join(import.meta.dirname, '../../backend/src/handlers');
 
@@ -33,6 +40,9 @@ export interface ApiStackProps extends cdk.StackProps {
 export class ApiStack extends cdk.Stack {
   readonly httpApi: apigwv2.HttpApi;
 
+  /** Every function this stack owns, keyed by a name the dashboard can show. */
+  private readonly handlers: Record<string, NodejsFunction> = {};
+
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
@@ -43,6 +53,7 @@ export class ApiStack extends cdk.Stack {
 
     this.httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       defaultAuthorizer: authorizer,
+      createDefaultStage: false,
       corsPreflight: {
         allowOrigins: ['http://localhost:5173'],
         allowMethods: [
@@ -56,6 +67,8 @@ export class ApiStack extends cdk.Stack {
         maxAge: cdk.Duration.hours(1),
       },
     });
+
+    this.httpApi.addStage('Stage', { stageName: API_STAGE_NAME, autoDeploy: true });
 
     // Unauthenticated on purpose: lets us verify the deploy pipeline end to end
     // without needing a signed-in user.
@@ -109,9 +122,19 @@ export class ApiStack extends cdk.Stack {
       }
     }
 
-    this.addReceipts(props);
+    const parser = this.addReceipts(props);
 
-    new cdk.CfnOutput(this, 'ApiUrl', { value: this.httpApi.apiEndpoint });
+    new Monitoring(this, 'Monitoring', {
+      httpApi: this.httpApi,
+      functions: this.handlers,
+      parser,
+      table: props.table,
+      alertEmail: this.node.tryGetContext('alertEmail') as string | undefined,
+    });
+
+    new cdk.CfnOutput(this, 'ApiUrl', {
+      value: `${this.httpApi.apiEndpoint}/${API_STAGE_NAME}`,
+    });
   }
 
   /**
@@ -119,7 +142,7 @@ export class ApiStack extends cdk.Stack {
    * S3. The upload goes straight from the browser to a presigned URL, so image
    * bytes never pass through the API.
    */
-  private addReceipts(props: ApiStackProps): void {
+  private addReceipts(props: ApiStackProps): NodejsFunction {
     const api = this.createHandler('Receipts', 'receipts.ts', {
       TABLE_NAME: props.table.tableName,
       RECEIPTS_BUCKET: props.receiptsBucket.bucketName,
@@ -179,6 +202,8 @@ export class ApiStack extends cdk.Stack {
         ],
       }),
     );
+
+    return parser;
   }
 
   private createHandler(
@@ -187,7 +212,7 @@ export class ApiStack extends cdk.Stack {
     environment: Record<string, string> = {},
     overrides: { timeout?: cdk.Duration; memorySize?: number } = {},
   ): NodejsFunction {
-    return new NodejsFunction(this, `${id}Fn`, {
+    const fn = new NodejsFunction(this, `${id}Fn`, {
       entry: path.join(HANDLERS_DIR, entryFile),
       runtime: lambda.Runtime.NODEJS_22_X,
       architecture: lambda.Architecture.ARM_64,
@@ -212,5 +237,9 @@ export class ApiStack extends cdk.Stack {
         removalPolicy: cdk.RemovalPolicy.DESTROY,
       }),
     });
+
+    this.handlers[id] = fn;
+
+    return fn;
   }
 }

@@ -5,6 +5,7 @@
     "exclude": ["**/*.d.ts", "node_modules"]
   },
   "context": {
+    "githubRepo": "loggk/spending-tracker",
     "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,
     "@aws-cdk/aws-apigateway:authorizerChangeDeploymentLogicalId": true,
     "@aws-cdk/aws-apigateway:disableCloudWatchRole": true,

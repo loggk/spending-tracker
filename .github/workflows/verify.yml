@@ -1,0 +1,42 @@
+name: Verify
+
+# Called by both CI and Deploy so the two never drift apart.
+on:
+  workflow_call:
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Matches the Lambda runtime the backend is deployed on.
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Runs before synth: the web stack uploads the compiled frontend, so the
+      # build output has to exist for the stack to synthesize at all.
+      - name: Build
+        run: npm run build
+
+      # Catches infrastructure errors without needing AWS credentials.
+      - name: Synthesize CDK stacks
+        run: npm run synth -w infra
