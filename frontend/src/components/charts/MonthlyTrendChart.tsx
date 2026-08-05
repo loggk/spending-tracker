@@ -17,7 +17,7 @@ interface MonthlyTrendChartProps {
 
 /**
  * Monthly totals, either as a single series or stacked by category. The single
- * view carries one hue and needs no legend. The stacked view names its series 
+ * view carries one hue and needs no legend. The stacked view names its series
  * in a legend below the chart.
  */
 export function MonthlyTrendChart({ data, series, stacked }: MonthlyTrendChartProps) {
