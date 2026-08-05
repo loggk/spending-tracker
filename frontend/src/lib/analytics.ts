@@ -1,12 +1,11 @@
 import type { Category, Transaction } from '@spending-tracker/shared';
 import { FALLBACK_COLOR } from './palette';
 
-export type RangeKey = 'month' | 'quarter' | 'ytd' | 'all';
+export type RangeKey = 'month' | 'year' | 'all';
 
 export const RANGE_LABELS: Record<RangeKey, string> = {
   month: 'This month',
-  quarter: 'Last 3 months',
-  ytd: 'Year to date',
+  year: 'This year',
   all: 'All time',
 };
 
@@ -24,9 +23,8 @@ export function resolveRange(key: RangeKey, today = new Date()): { from?: string
   switch (key) {
     case 'month':
       return { from: iso(new Date(Date.UTC(year, month, 1))), to };
-    case 'quarter':
-      return { from: iso(new Date(Date.UTC(year, month - 2, 1))), to };
-    case 'ytd':
+    case 'year':
+      // January 1 through today, not a rolling twelve months.
       return { from: iso(new Date(Date.UTC(year, 0, 1))), to };
     case 'all':
       return {};
@@ -92,11 +90,16 @@ const monthLabel = (month: string): string => {
   });
 };
 
+export interface MonthRange {
+  from?: string;
+  to?: string;
+}
+
 /**
  * Spend per calendar month, oldest first. Months with no spending are included as
  * zero so gaps read as gaps instead of collapsing the time axis.
  */
-export function byMonth(transactions: Transaction[]): MonthTotal[] {
+export function byMonth(transactions: Transaction[], range: MonthRange = {}): MonthTotal[] {
   if (transactions.length === 0) {
     return [];
   }
@@ -108,10 +111,19 @@ export function byMonth(transactions: Transaction[]): MonthTotal[] {
   }
 
   const months = [...totals.keys()].sort();
-  const first = months[0];
-  const last = months[months.length - 1];
+  let first = months[0];
+  let last = months[months.length - 1];
   if (!first || !last) {
     return [];
+  }
+
+  const fromMonth = range.from?.slice(0, 7);
+  const toMonth = range.to?.slice(0, 7);
+  if (fromMonth && fromMonth < first) {
+    first = fromMonth;
+  }
+  if (toMonth && toMonth > last) {
+    last = toMonth;
   }
 
   const [startYear, startMonth] = first.split('-').map(Number);
@@ -131,4 +143,43 @@ export function byMonth(transactions: Transaction[]): MonthTotal[] {
   }
 
   return filled;
+}
+
+export interface StackedMonthTotal extends MonthTotal {
+  totals: Record<string, number>;
+}
+
+export interface MonthCategoryBreakdown {
+  months: StackedMonthTotal[];
+  series: CategoryTotal[];
+}
+
+/**
+ * Spend per month broken down by category, for the stacked view of the monthly
+ * chart. Reuses {@link byMonth} for the month spine so gaps stay visible, and
+ * {@link byCategory} for a series order that is fixed across the whole range.
+ */
+export function byMonthAndCategory(
+  transactions: Transaction[],
+  categories: Category[],
+  range: MonthRange = {},
+): MonthCategoryBreakdown {
+  const known = new Set(categories.map((category) => category.id));
+  const perMonth = new Map<string, Record<string, number>>();
+
+  for (const transaction of transactions) {
+    const month = transaction.date.slice(0, 7);
+    const key = known.has(transaction.categoryId) ? transaction.categoryId : '';
+    const bucket = perMonth.get(month) ?? {};
+    bucket[key] = (bucket[key] ?? 0) + transaction.amountCents;
+    perMonth.set(month, bucket);
+  }
+
+  return {
+    months: byMonth(transactions, range).map((entry) => ({
+      ...entry,
+      totals: perMonth.get(entry.month) ?? {},
+    })),
+    series: byCategory(transactions, categories),
+  };
 }

@@ -1,15 +1,19 @@
 import { type FormEvent, useState } from 'react';
 import type { Category } from '@spending-tracker/shared';
+import { PencilIcon, Trash2Icon } from 'lucide-react';
 import { toast } from 'sonner';
+import { ColorInput } from '@/components/ColorInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CATEGORY_COLORS } from '@/lib/palette';
 import { useCategories, useCreateCategory, useDeleteCategory } from '@/lib/queries';
+import { EditCategoryDialog } from './EditCategoryDialog';
 
 export function Categories() {
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>(CATEGORY_COLORS[0]);
+  const [editing, setEditing] = useState<Category | null>(null);
 
   const categories = useCategories();
   const createCategory = useCreateCategory();
@@ -67,24 +71,10 @@ export function Categories() {
         </div>
 
         <div className="grid gap-1.5">
-          <span className="text-xs text-muted-foreground">Color</span>
-          <div className="flex gap-1.5">
-            {CATEGORY_COLORS.map((swatch) => (
-              <button
-                key={swatch}
-                type="button"
-                aria-label={`Use color ${swatch}`}
-                aria-pressed={color === swatch}
-                onClick={() => setColor(swatch)}
-                style={{ backgroundColor: swatch }}
-                className={
-                  color === swatch
-                    ? 'size-7 rounded-full ring-2 ring-foreground ring-offset-2'
-                    : 'size-7 rounded-full'
-                }
-              />
-            ))}
-          </div>
+          <Label htmlFor="color" className="text-xs text-muted-foreground">
+            Color
+          </Label>
+          <ColorInput id="color" value={color} onChange={setColor} />
         </div>
 
         <Button type="submit" disabled={createCategory.isPending}>
@@ -110,19 +100,32 @@ export function Categories() {
                   style={{ backgroundColor: category.color }}
                 />
                 <span className="font-medium">{category.name}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-auto"
-                  onClick={() => handleDelete(category)}
-                  disabled={deleteCategory.isPending}
-                >
-                  Delete
-                </Button>
+                <div className="ml-auto flex gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Edit ${category.name}`}
+                    onClick={() => setEditing(category)}
+                  >
+                    <PencilIcon />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Delete ${category.name}`}
+                    onClick={() => handleDelete(category)}
+                    disabled={deleteCategory.isPending}
+                  >
+                    <Trash2Icon />
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
         ))}
+
+      <EditCategoryDialog category={editing} onClose={() => setEditing(null)} />
     </div>
   );
 }

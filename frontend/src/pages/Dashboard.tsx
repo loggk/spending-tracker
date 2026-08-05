@@ -1,31 +1,43 @@
 import { useMemo, useState } from 'react';
+import { ChartBarIcon, ChartColumnIcon, ChartColumnStackedIcon, ChartPieIcon } from 'lucide-react';
 import { CategoryBarChart } from '@/components/charts/CategoryBarChart';
+import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
 import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
+import { type DateRange, DateRangePicker } from '@/components/DateRangePicker';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   type RangeKey,
   RANGE_LABELS,
   byCategory,
-  byMonth,
+  byMonthAndCategory,
   resolveRange,
   totalCents,
 } from '@/lib/analytics';
 import { formatAmount } from '@/lib/format';
 import { useCategories, useTransactions } from '@/lib/queries';
 
-const RANGES: RangeKey[] = ['month', 'quarter', 'ytd', 'all'];
+const RANGES: RangeKey[] = ['month', 'year', 'all'];
 
 export function Dashboard() {
-  const [range, setRange] = useState<RangeKey>('month');
+  const [preset, setPreset] = useState<RangeKey>('month');
+  const [custom, setCustom] = useState<DateRange>({});
+  const [categoryView, setCategoryView] = useState<'bar' | 'pie'>('bar');
+  const [monthView, setMonthView] = useState<'total' | 'stacked'>('total');
 
-  const query = useMemo(() => resolveRange(range), [range]);
+  const customActive = Boolean(custom.from ?? custom.to);
+  const query = useMemo(
+    () => (customActive ? custom : resolveRange(preset)),
+    [customActive, custom, preset],
+  );
+
   const transactions = useTransactions(query);
   const categories = useCategories();
 
   const rows = transactions.data ?? [];
   const categoryTotals = byCategory(rows, categories.data ?? []);
-  const monthTotals = byMonth(rows);
+  const monthly = byMonthAndCategory(rows, categories.data ?? [], query);
 
   const total = totalCents(rows);
   const average = rows.length === 0 ? 0 : Math.round(total / rows.length);
@@ -35,18 +47,27 @@ export function Dashboard() {
     <div className="grid gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Time range">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Time range">
           {RANGES.map((key) => (
             <Button
               key={key}
               size="sm"
-              variant={range === key ? 'secondary' : 'ghost'}
-              aria-pressed={range === key}
-              onClick={() => setRange(key)}
+              variant={!customActive && preset === key ? 'secondary' : 'outline'}
+              aria-pressed={!customActive && preset === key}
+              onClick={() => {
+                setPreset(key);
+                setCustom({});
+              }}
             >
               {RANGE_LABELS[key]}
             </Button>
           ))}
+          <DateRangePicker
+            value={custom}
+            onChange={setCustom}
+            placeholder="Custom"
+            active={customActive}
+          />
         </div>
       </div>
 
@@ -83,19 +104,51 @@ export function Dashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-medium">Spending by category</CardTitle>
+              <CardAction>
+                <ChartViewToggle
+                  value={categoryView}
+                  onChange={setCategoryView}
+                  options={[
+                    { value: 'bar', label: 'Bar chart', icon: <ChartBarIcon /> },
+                    { value: 'pie', label: 'Pie chart', icon: <ChartPieIcon /> },
+                  ]}
+                />
+              </CardAction>
             </CardHeader>
             <CardContent>
-              <CategoryBarChart data={categoryTotals} />
+              {categoryView === 'bar' ? (
+                <CategoryBarChart data={categoryTotals} />
+              ) : (
+                <CategoryPieChart data={categoryTotals} />
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-medium">Spending by month</CardTitle>
+              <CardAction>
+                <ChartViewToggle
+                  value={monthView}
+                  onChange={setMonthView}
+                  options={[
+                    { value: 'total', label: 'Monthly totals', icon: <ChartColumnIcon /> },
+                    {
+                      value: 'stacked',
+                      label: 'Stacked by category',
+                      icon: <ChartColumnStackedIcon />,
+                    },
+                  ]}
+                />
+              </CardAction>
             </CardHeader>
             <CardContent>
-              {monthTotals.length > 1 ? (
-                <MonthlyTrendChart data={monthTotals} />
+              {monthly.months.length > 1 ? (
+                <MonthlyTrendChart
+                  data={monthly.months}
+                  series={monthly.series}
+                  stacked={monthView === 'stacked'}
+                />
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   A month-by-month trend appears once you have spending in more than one month.
@@ -106,6 +159,36 @@ export function Dashboard() {
         </>
       )}
     </div>
+  );
+}
+
+interface ChartViewToggleProps<T extends string> {
+  value: T;
+  onChange: (value: T) => void;
+  options: Array<{ value: T; label: string; icon: React.ReactNode }>;
+}
+
+/** Icon switch between two renderings of the same data; one is always active. */
+function ChartViewToggle<T extends string>({ value, onChange, options }: ChartViewToggleProps<T>) {
+  return (
+    <ToggleGroup
+      variant="outline"
+      size="sm"
+      spacing={0}
+      value={[value]}
+      onValueChange={(next: unknown[]) => {
+        const [selected] = next;
+        if (typeof selected === 'string') {
+          onChange(selected as T);
+        }
+      }}
+    >
+      {options.map((option) => (
+        <ToggleGroupItem key={option.value} value={option.value} aria-label={option.label}>
+          {option.icon}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }
 

@@ -1,14 +1,15 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { signOut } from 'aws-amplify/auth';
 import { useAuth } from '@/auth/auth-context';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const links = [
   { to: '/', label: 'Dashboard' },
   { to: '/transactions', label: 'Transactions' },
-  { to: '/receipts', label: 'Scan receipt' },
   { to: '/categories', label: 'Categories' },
+  { to: '/receipts', label: 'Receipts' },
 ];
 
 export function AppLayout() {
@@ -43,8 +44,9 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2">
             <span className="hidden text-sm text-muted-foreground sm:inline">{user?.email}</span>
+            <ThemeToggle />
             <Button variant="outline" size="sm" onClick={() => void handleSignOut()}>
               Sign out
             </Button>

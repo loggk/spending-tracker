@@ -1,8 +1,18 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useMemo, useState } from 'react';
 import type { Category, Transaction } from '@spending-tracker/shared';
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronsUpDownIcon,
+  PencilIcon,
+  SearchIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CategoryFilter } from '@/components/CategoryFilter';
 import { CategorySelect } from '@/components/CategorySelect';
+import { type DateRange, DateRangePicker } from '@/components/DateRangePicker';
 import { ImportDialog } from '@/components/ImportDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,18 +38,62 @@ import { EditTransactionDialog } from './EditTransactionDialog';
 
 const emptyDraft = () => ({ date: today(), amount: '', description: '', categoryId: '' });
 
+type SortKey = 'date' | 'amount';
+
+interface Sort {
+  key: SortKey;
+  direction: 'asc' | 'desc';
+}
+
 export function Transactions() {
   const [draft, setDraft] = useState(emptyDraft);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [importing, setImporting] = useState(false);
 
-  const transactions = useTransactions();
+  const [search, setSearch] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange>({});
+  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<Sort>({ key: 'date', direction: 'desc' });
+
+  // The API filters by date server-side; search and categories filter client-side.
+  const transactions = useTransactions(dateRange);
   const categories = useCategories();
   const createTransaction = useCreateTransaction();
   const deleteTransaction = useDeleteTransaction();
 
   const categoryList = categories.data ?? [];
   const byId = new Map(categoryList.map((category) => [category.id, category]));
+
+  const fetched = transactions.data ?? [];
+  const filtering =
+    search.trim() !== '' || categoryFilter.size > 0 || Boolean(dateRange.from ?? dateRange.to);
+
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    const factor = sort.direction === 'asc' ? 1 : -1;
+
+    return (transactions.data ?? [])
+      .filter(
+        (transaction) =>
+          (needle === '' || transaction.description.toLowerCase().includes(needle)) &&
+          (categoryFilter.size === 0 || categoryFilter.has(transaction.categoryId)),
+      )
+      .sort((a, b) => {
+        const order =
+          sort.key === 'date' ? a.date.localeCompare(b.date) : a.amountCents - b.amountCents;
+        return factor * order;
+      });
+  }, [transactions.data, search, categoryFilter, sort]);
+
+  const total = rows.reduce((sum, row) => sum + row.amountCents, 0);
+
+  function handleSort(key: SortKey) {
+    setSort((previous) =>
+      previous.key === key
+        ? { key, direction: previous.direction === 'desc' ? 'asc' : 'desc' }
+        : { key, direction: 'desc' },
+    );
+  }
 
   function handleAdd(event: FormEvent) {
     event.preventDefault();
@@ -87,9 +141,6 @@ export function Transactions() {
     });
   }
 
-  const rows = transactions.data ?? [];
-  const total = rows.reduce((sum, row) => sum + row.amountCents, 0);
-
   if (categories.isSuccess && categoryList.length === 0) {
     return (
       <EmptyState>
@@ -109,7 +160,8 @@ export function Transactions() {
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
           {rows.length > 0 && (
             <p className="text-sm text-muted-foreground">
-              {rows.length} {rows.length === 1 ? 'entry' : 'entries'} · {formatAmount(total)}
+              {rows.length} {rows.length === 1 ? 'entry' : 'entries'}
+              {filtering && ' matching'} · {formatAmount(total)}
             </p>
           )}
         </div>
@@ -169,6 +221,30 @@ export function Transactions() {
         </Button>
       </form>
 
+      {(fetched.length > 0 || filtering) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-48 flex-1 sm:max-w-xs">
+            <SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search descriptions"
+              aria-label="Search descriptions"
+              className="pl-8"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <CategoryFilter
+              categories={categoryList}
+              selected={categoryFilter}
+              onChange={setCategoryFilter}
+            />
+          </div>
+        </div>
+      )}
+
       {transactions.isPending && <EmptyState>Loading transactions…</EmptyState>}
       {transactions.isError && (
         <EmptyState>Could not load transactions: {transactions.error.message}</EmptyState>
@@ -176,17 +252,34 @@ export function Transactions() {
 
       {transactions.isSuccess &&
         (rows.length === 0 ? (
-          <EmptyState>No transactions yet. Add your first one above.</EmptyState>
+          <EmptyState>
+            {filtering
+              ? 'No transactions match the current filters.'
+              : 'No transactions yet. Add your first one above.'}
+          </EmptyState>
         ) : (
           <div className="rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-36">Date</TableHead>
+                  <SortableHead
+                    label="Date"
+                    className="w-36"
+                    sort={sort}
+                    sortKey="date"
+                    onSort={handleSort}
+                  />
                   <TableHead>Description</TableHead>
                   <TableHead className="w-44">Category</TableHead>
-                  <TableHead className="w-28 text-right">Amount</TableHead>
-                  <TableHead className="w-28" />
+                  <SortableHead
+                    label="Amount"
+                    className="w-32"
+                    align="right"
+                    sort={sort}
+                    sortKey="amount"
+                    onSort={handleSort}
+                  />
+                  <TableHead className="w-20" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -202,18 +295,27 @@ export function Transactions() {
                     <TableCell className="text-right tabular-nums">
                       {formatAmount(transaction.amountCents)}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setEditing(transaction)}>
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(transaction)}
-                        disabled={deleteTransaction.isPending}
-                      >
-                        Delete
-                      </Button>
+                    <TableCell>
+                      <div className="flex justify-end gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Edit ${transaction.description}`}
+                          onClick={() => setEditing(transaction)}
+                        >
+                          <PencilIcon />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label={`Delete ${transaction.description}`}
+                          onClick={() => handleDelete(transaction)}
+                          disabled={deleteTransaction.isPending}
+                        >
+                          <Trash2Icon />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -234,6 +336,51 @@ export function Transactions() {
         onClose={() => setEditing(null)}
       />
     </div>
+  );
+}
+
+interface SortableHeadProps {
+  label: string;
+  sortKey: SortKey;
+  sort: Sort;
+  onSort: (key: SortKey) => void;
+  className?: string;
+  align?: 'left' | 'right';
+}
+
+function SortableHead({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  className,
+  align = 'left',
+}: SortableHeadProps) {
+  const active = sort.key === sortKey;
+  const Arrow = active
+    ? sort.direction === 'asc'
+      ? ArrowUpIcon
+      : ArrowDownIcon
+    : ChevronsUpDownIcon;
+
+  return (
+    <TableHead
+      className={className}
+      aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={
+          align === 'right'
+            ? 'flex w-full items-center justify-end gap-1 hover:text-foreground'
+            : 'flex items-center gap-1 hover:text-foreground'
+        }
+      >
+        {label}
+        <Arrow className={active ? 'size-3.5' : 'size-3.5 opacity-50'} />
+      </button>
+    </TableHead>
   );
 }
 
