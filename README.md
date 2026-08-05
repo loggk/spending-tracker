@@ -1,6 +1,6 @@
 # Spending Tracker
 
-A serverless personal finance app for tracking spending — replacing my Excel workflow with a fast web UI, spending dashboards, and AI-powered receipt scanning.
+A serverless personal finance app for tracking spending: replacing my Excel workflow with a fast web UI, spending dashboards, and AI-powered receipt scanning.
 
 ## Features
 
@@ -140,7 +140,7 @@ npm run dev
 
 | Stack                          | Contents                                                                    |
 | ------------------------------ | --------------------------------------------------------------------------- |
-| `SpendingTracker-DataAuth`     | DynamoDB table, receipts bucket, Cognito user pool — all retained on delete |
+| `SpendingTracker-DataAuth`     | DynamoDB table, receipts bucket, Cognito user pool: all retained on delete  |
 | `SpendingTracker-Api`          | HTTP API, Lambda functions, EventBridge rule, CloudWatch dashboard + alarms |
 | `SpendingTracker-Web`          | Site bucket, CloudFront distribution, deployment of the built frontend      |
 | `SpendingTracker-GithubDeploy` | OIDC provider and the role GitHub Actions assumes                           |
@@ -158,7 +158,10 @@ role itself can do nothing except assume the roles created by `cdk bootstrap`.
 
 To wire it up:
 
-1. Set `githubRepo` in [`infra/cdk.json`](infra/cdk.json) to your `owner/repo`.
+1. Set `githubRepositories` in [`infra/cdk.json`](infra/cdk.json). GitHub is moving the
+   token's subject claim from `owner/repo` to an id-qualified `owner@id/repo@id`, so a
+   renamed account cannot inherit the trust the old name had. List both forms — read
+   yours with `gh api /repos/OWNER/REPO/actions/oidc/customization/sub`.
 2. Deploy `SpendingTracker-GithubDeploy` once from your machine — CI cannot create
    the role it needs to authenticate with.
 3. Add a repository variable `AWS_DEPLOY_ROLE_ARN` with the stack's `DeployRoleArn`

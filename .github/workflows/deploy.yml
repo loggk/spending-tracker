@@ -46,6 +46,9 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Pre-build the frontend
+        run: npm run build -w frontend
+
       # The frontend compiles the Cognito ids into its bundle, so the stacks
       # that own them go out first and their outputs configure the build.
       - name: Deploy data and API stacks
