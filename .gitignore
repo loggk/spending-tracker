@@ -9,6 +9,7 @@ build/
 # CDK
 cdk.out/
 .cdk.staging/
+outputs.json
 
 # Environment
 .env
