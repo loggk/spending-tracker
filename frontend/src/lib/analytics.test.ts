@@ -1,6 +1,6 @@
 import type { Category, Transaction } from '@spending-tracker/shared';
 import { describe, expect, it } from 'vitest';
-import { byCategory, byMonth, resolveRange, totalCents } from './analytics';
+import { byCategory, byMonth, byMonthAndCategory, resolveRange, totalCents } from './analytics';
 
 const transaction = (date: string, amountCents: number, categoryId = 'food'): Transaction => ({
   id: `${date}_x`,
@@ -23,20 +23,12 @@ describe('resolveRange', () => {
     expect(resolveRange('month', today)).toEqual({ from: '2026-08-01', to: '2026-08-03' });
   });
 
-  it('covers three months including the current one', () => {
-    expect(resolveRange('quarter', today)).toEqual({ from: '2026-06-01', to: '2026-08-03' });
-  });
-
-  it('starts year to date on January 1', () => {
-    expect(resolveRange('ytd', today)).toEqual({ from: '2026-01-01', to: '2026-08-03' });
+  it('starts this year on January 1', () => {
+    expect(resolveRange('year', today)).toEqual({ from: '2026-01-01', to: '2026-08-03' });
   });
 
   it('leaves all time unbounded', () => {
     expect(resolveRange('all', today)).toEqual({});
-  });
-
-  it('rolls back across a year boundary', () => {
-    expect(resolveRange('quarter', new Date('2026-01-15T12:00:00Z')).from).toBe('2025-11-01');
   });
 });
 
@@ -132,5 +124,63 @@ describe('byMonth', () => {
 
   it('returns nothing for no transactions', () => {
     expect(byMonth([])).toEqual([]);
+  });
+
+  it('widens the spine to a range that reaches past the data', () => {
+    const result = byMonth([transaction('2026-03-15', 300)], {
+      from: '2026-01-01',
+      to: '2026-05-31',
+    });
+
+    expect(result.map((entry) => [entry.month, entry.cents])).toEqual([
+      ['2026-01', 0],
+      ['2026-02', 0],
+      ['2026-03', 300],
+      ['2026-04', 0],
+      ['2026-05', 0],
+    ]);
+  });
+
+  it('ignores range bounds inside the data', () => {
+    const result = byMonth([transaction('2026-01-01', 100), transaction('2026-03-01', 100)], {
+      from: '2026-02-01',
+      to: '2026-02-28',
+    });
+
+    expect(result.map((entry) => entry.month)).toEqual(['2026-01', '2026-02', '2026-03']);
+  });
+});
+
+describe('byMonthAndCategory', () => {
+  it('breaks each month down by category', () => {
+    const { months } = byMonthAndCategory(
+      [
+        transaction('2026-01-05', 100, 'food'),
+        transaction('2026-01-20', 200, 'fun'),
+        transaction('2026-02-01', 50, 'food'),
+      ],
+      categories,
+    );
+
+    expect(months.map((entry) => entry.totals)).toEqual([{ food: 100, fun: 200 }, { food: 50 }]);
+  });
+
+  it('orders series by overall spend so stacks paint alike', () => {
+    const { series } = byMonthAndCategory(
+      [transaction('2026-01-05', 100, 'food'), transaction('2026-02-01', 500, 'fun')],
+      categories,
+    );
+
+    expect(series.map((entry) => entry.name)).toEqual(['Fun', 'Food']);
+  });
+
+  it('keeps empty months and buckets deleted categories', () => {
+    const { months, series } = byMonthAndCategory(
+      [transaction('2026-01-01', 100, 'gone'), transaction('2026-03-01', 200, 'food')],
+      categories,
+    );
+
+    expect(months.map((entry) => entry.totals)).toEqual([{ '': 100 }, {}, { food: 200 }]);
+    expect(series.map((entry) => entry.name)).toEqual(['Food', 'Uncategorized']);
   });
 });
