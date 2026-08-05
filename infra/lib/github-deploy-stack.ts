@@ -5,7 +5,7 @@ import type { Construct } from 'constructs';
 const GITHUB_OIDC_ISSUER = 'token.actions.githubusercontent.com';
 
 export interface GithubDeployStackProps extends cdk.StackProps {
-  repository: string;
+  repositories: string[];
   branch: string;
 }
 
@@ -28,7 +28,9 @@ export class GithubDeployStack extends cdk.Stack {
       assumedBy: new iam.OpenIdConnectPrincipal(provider, {
         StringEquals: {
           [`${GITHUB_OIDC_ISSUER}:aud`]: 'sts.amazonaws.com',
-          [`${GITHUB_OIDC_ISSUER}:sub`]: `repo:${props.repository}:ref:refs/heads/${props.branch}`,
+          [`${GITHUB_OIDC_ISSUER}:sub`]: props.repositories.map(
+            (repository) => `repo:${repository}:ref:refs/heads/${props.branch}`,
+          ),
         },
       }),
     });

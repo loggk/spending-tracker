@@ -29,7 +29,7 @@ new WebStack(app, 'SpendingTracker-Web', {
 
 new GithubDeployStack(app, 'SpendingTracker-GithubDeploy', {
   env,
-  repository: app.node.getContext('githubRepo') as string,
+  repositories: app.node.getContext('githubRepositories') as string[],
   branch: 'main',
 });
 
