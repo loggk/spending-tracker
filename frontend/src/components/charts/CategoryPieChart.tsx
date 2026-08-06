@@ -10,7 +10,7 @@ import { ChartTooltip } from './ChartTooltip';
 export function CategoryPieChart({ data }: { data: CategoryTotal[] }) {
   return (
     <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={220}>
         <PieChart>
           <Tooltip content={<ChartTooltip nameKey="name" />} />
           <Pie
