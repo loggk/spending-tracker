@@ -181,7 +181,7 @@ export function Receipts() {
               {items.map((item, index) => (
                 <li
                   key={index}
-                  className="grid items-center gap-2 rounded-md border p-2 sm:grid-cols-[auto_1fr_7rem_11rem]"
+                  className="grid grid-cols-[auto_1fr] items-center gap-2 rounded-md border p-2 sm:grid-cols-[auto_1fr_7rem_11rem]"
                 >
                   <input
                     type="checkbox"
@@ -195,22 +195,27 @@ export function Receipts() {
                     value={item.description}
                     onChange={(event) => update(index, { description: event.target.value })}
                   />
-                  <Input
-                    aria-label="Amount"
-                    inputMode="decimal"
-                    value={item.amount}
-                    onChange={(event) => update(index, { amount: event.target.value })}
-                  />
-                  <CategorySelect
-                    categories={categoryList}
-                    value={item.categoryId}
-                    onChange={(categoryId) => update(index, { categoryId })}
-                  />
+                  {/* Amount and category share a line under the description on a phone;
+                      `contents` drops this wrapper so they rejoin the grid on wider screens. */}
+                  <div className="col-start-2 flex gap-2 sm:contents">
+                    <Input
+                      aria-label="Amount"
+                      inputMode="decimal"
+                      className="w-24 sm:w-auto"
+                      value={item.amount}
+                      onChange={(event) => update(index, { amount: event.target.value })}
+                    />
+                    <CategorySelect
+                      categories={categoryList}
+                      value={item.categoryId}
+                      onChange={(categoryId) => update(index, { categoryId })}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
 
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground tabular-nums">
                 {items.filter((item) => item.include).length} selected ·{' '}
                 {formatAmount(selectedTotal)}

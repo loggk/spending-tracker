@@ -2,6 +2,7 @@ import { type FormEvent, useMemo, useState } from 'react';
 import type { Category, Transaction } from '@spending-tracker/shared';
 import {
   ArrowDownIcon,
+  ArrowUpDownIcon,
   ArrowUpIcon,
   ChevronsUpDownIcon,
   PencilIcon,
@@ -15,6 +16,13 @@ import { CategorySelect } from '@/components/CategorySelect';
 import { type DateRange, DateRangePicker } from '@/components/DateRangePicker';
 import { ImportDialog } from '@/components/ImportDialog';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -28,6 +36,7 @@ import {
 import { toCsv } from '@/lib/csv';
 import { downloadTextFile } from '@/lib/download';
 import { formatAmount, formatDate, parseAmountToCents, today } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import {
   useCategories,
   useCreateTransaction,
@@ -177,7 +186,7 @@ export function Transactions() {
 
       <form
         onSubmit={handleAdd}
-        className="grid gap-3 rounded-lg border p-4 sm:grid-cols-[9rem_8rem_1fr_11rem_auto] sm:items-end"
+        className="grid grid-cols-2 gap-3 rounded-lg border p-4 sm:grid-cols-[9rem_8rem_1fr_11rem_auto] sm:items-end"
       >
         <Field label="Date" htmlFor="date">
           <Input
@@ -198,7 +207,7 @@ export function Transactions() {
             onChange={(event) => setDraft({ ...draft, amount: event.target.value })}
           />
         </Field>
-        <Field label="Description" htmlFor="description">
+        <Field label="Description" htmlFor="description" className="col-span-2 sm:col-span-1">
           <Input
             id="description"
             placeholder="Coffee"
@@ -208,7 +217,7 @@ export function Transactions() {
             onChange={(event) => setDraft({ ...draft, description: event.target.value })}
           />
         </Field>
-        <Field label="Category" htmlFor="category">
+        <Field label="Category" htmlFor="category" className="col-span-2 sm:col-span-1">
           <CategorySelect
             id="category"
             categories={categoryList}
@@ -216,7 +225,11 @@ export function Transactions() {
             onChange={(categoryId) => setDraft({ ...draft, categoryId })}
           />
         </Field>
-        <Button type="submit" disabled={createTransaction.isPending}>
+        <Button
+          type="submit"
+          className="col-span-2 sm:col-span-1"
+          disabled={createTransaction.isPending}
+        >
           {createTransaction.isPending ? 'Adding…' : 'Add'}
         </Button>
       </form>
@@ -234,13 +247,15 @@ export function Transactions() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <div className="ml-auto flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2 sm:ml-auto">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
             <CategoryFilter
               categories={categoryList}
               selected={categoryFilter}
               onChange={setCategoryFilter}
             />
+            {/* The card list has no column headers to click, so sorting moves into a menu. */}
+            <SortMenu sort={sort} onChange={setSort} className="sm:hidden" />
           </div>
         </div>
       )}
@@ -258,70 +273,115 @@ export function Transactions() {
               : 'No transactions yet. Add your first one above.'}
           </EmptyState>
         ) : (
-          <div className="rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableHead
-                    label="Date"
-                    className="w-36"
-                    sort={sort}
-                    sortKey="date"
-                    onSort={handleSort}
-                  />
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-44">Category</TableHead>
-                  <SortableHead
-                    label="Amount"
-                    className="w-32"
-                    align="right"
-                    sort={sort}
-                    sortKey="amount"
-                    onSort={handleSort}
-                  />
-                  <TableHead className="w-20" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell className="text-muted-foreground">
-                      {formatDate(transaction.date)}
-                    </TableCell>
-                    <TableCell className="font-medium">{transaction.description}</TableCell>
-                    <TableCell>
-                      <CategoryBadge category={byId.get(transaction.categoryId)} />
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
+          <>
+            {/* A five-column table cannot fit a phone, so narrow screens get cards. */}
+            <ul className="grid gap-2 sm:hidden">
+              {rows.map((transaction) => (
+                <li key={transaction.id} className="grid gap-1 rounded-lg border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 font-medium break-words">
+                      {transaction.description}
+                    </span>
+                    <span className="shrink-0 font-medium tabular-nums">
                       {formatAmount(transaction.amountCents)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-0.5">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Edit ${transaction.description}`}
-                          onClick={() => setEditing(transaction)}
-                        >
-                          <PencilIcon />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          aria-label={`Delete ${transaction.description}`}
-                          onClick={() => handleDelete(transaction)}
-                          disabled={deleteTransaction.isPending}
-                        >
-                          <Trash2Icon />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+                      <CategoryBadge category={byId.get(transaction.categoryId)} />
+                      <span aria-hidden>·</span>
+                      <span className="shrink-0">{formatDate(transaction.date)}</span>
+                    </div>
+                    <div className="-mr-1 flex shrink-0 gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Edit ${transaction.description}`}
+                        onClick={() => setEditing(transaction)}
+                      >
+                        <PencilIcon />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label={`Delete ${transaction.description}`}
+                        onClick={() => handleDelete(transaction)}
+                        disabled={deleteTransaction.isPending}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden rounded-lg border sm:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableHead
+                      label="Date"
+                      className="w-36"
+                      sort={sort}
+                      sortKey="date"
+                      onSort={handleSort}
+                    />
+                    <TableHead>Description</TableHead>
+                    <TableHead className="w-44">Category</TableHead>
+                    <SortableHead
+                      label="Amount"
+                      className="w-32"
+                      align="right"
+                      sort={sort}
+                      sortKey="amount"
+                      onSort={handleSort}
+                    />
+                    <TableHead className="w-20" />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((transaction) => (
+                    <TableRow key={transaction.id}>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(transaction.date)}
+                      </TableCell>
+                      <TableCell className="font-medium">{transaction.description}</TableCell>
+                      <TableCell>
+                        <CategoryBadge category={byId.get(transaction.categoryId)} />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatAmount(transaction.amountCents)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Edit ${transaction.description}`}
+                            onClick={() => setEditing(transaction)}
+                          >
+                            <PencilIcon />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground hover:text-destructive"
+                            aria-label={`Delete ${transaction.description}`}
+                            onClick={() => handleDelete(transaction)}
+                            disabled={deleteTransaction.isPending}
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         ))}
 
       <ImportDialog
@@ -336,6 +396,55 @@ export function Transactions() {
         onClose={() => setEditing(null)}
       />
     </div>
+  );
+}
+
+const SORT_OPTIONS: Array<{ value: string; label: string; sort: Sort }> = [
+  { value: 'date-desc', label: 'Newest first', sort: { key: 'date', direction: 'desc' } },
+  { value: 'date-asc', label: 'Oldest first', sort: { key: 'date', direction: 'asc' } },
+  { value: 'amount-desc', label: 'Largest first', sort: { key: 'amount', direction: 'desc' } },
+  { value: 'amount-asc', label: 'Smallest first', sort: { key: 'amount', direction: 'asc' } },
+];
+
+function SortMenu({
+  sort,
+  onChange,
+  className,
+}: {
+  sort: Sort;
+  onChange: (sort: Sort) => void;
+  className?: string;
+}) {
+  const value = `${sort.key}-${sort.direction}`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="outline" size="sm" className={className}>
+            <ArrowUpDownIcon data-icon="inline-start" />
+            Sort
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next) => {
+            const option = SORT_OPTIONS.find((entry) => entry.value === next);
+            if (option) {
+              onChange(option.sort);
+            }
+          }}
+        >
+          {SORT_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -387,14 +496,16 @@ function SortableHead({
 function Field({
   label,
   htmlFor,
+  className,
   children,
 }: {
   label: string;
   htmlFor: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-1.5">
+    <div className={cn('grid gap-1.5', className)}>
       <Label htmlFor={htmlFor} className="text-xs text-muted-foreground">
         {label}
       </Label>
@@ -409,13 +520,13 @@ function CategoryBadge({ category }: { category: Category | undefined }) {
   }
 
   return (
-    <span className="flex items-center gap-2 text-sm">
+    <span className="flex min-w-0 items-center gap-2 text-sm">
       <span
         aria-hidden
         className="size-2.5 shrink-0 rounded-full"
         style={{ backgroundColor: category.color }}
       />
-      {category.name}
+      <span className="truncate">{category.name}</span>
     </span>
   );
 }

@@ -2,6 +2,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import type { CategoryTotal, StackedMonthTotal } from '@/lib/analytics';
 import { formatAmount } from '@/lib/format';
 import { SERIES_COLOR } from '@/lib/palette';
+import { WIDE_SCREEN, useMediaQuery } from '@/lib/use-media-query';
 import { ChartLegend } from './ChartLegend';
 import { ChartTooltip } from './ChartTooltip';
 
@@ -21,16 +22,24 @@ interface MonthlyTrendChartProps {
  * in a legend below the chart.
  */
 export function MonthlyTrendChart({ data, series, stacked }: MonthlyTrendChartProps) {
+  const wide = useMediaQuery(WIDE_SCREEN);
+
   return (
     <div>
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
           <CartesianGrid vertical={false} stroke="var(--border)" strokeWidth={1} />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} tick={axisTick} />
+          <XAxis
+            dataKey="label"
+            tickLine={false}
+            axisLine={false}
+            tick={axisTick}
+            minTickGap={wide ? 5 : 16}
+          />
           <YAxis
             tickLine={false}
             axisLine={false}
-            width={64}
+            width={wide ? 64 : 48}
             tick={axisTick}
             tickFormatter={(value: number) => `$${Math.round(value / 100).toLocaleString()}`}
           />

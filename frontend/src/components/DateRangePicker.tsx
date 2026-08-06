@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatDate } from '@/lib/format';
+import { WIDE_SCREEN, useMediaQuery } from '@/lib/use-media-query';
 
 /** Both bounds are ISO `YYYY-MM-DD`; either side may be open. */
 export interface DateRange {
@@ -61,6 +62,7 @@ export function DateRangePicker({
   active = false,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false);
+  const wide = useMediaQuery(WIDE_SCREEN);
   const hasValue = Boolean(value.from ?? value.to);
   const selected: DayPickerRange | undefined = hasValue
     ? { from: parseIso(value.from), to: parseIso(value.to) }
@@ -77,16 +79,20 @@ export function DateRangePicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button variant={active || hasValue ? 'secondary' : 'outline'} size="sm">
+          <Button
+            variant={active || hasValue ? 'secondary' : 'outline'}
+            size="sm"
+            className="max-w-full"
+          >
             <CalendarIcon data-icon="inline-start" />
-            {label(value, placeholder)}
+            <span className="truncate">{label(value, placeholder)}</span>
           </Button>
         }
       />
-      <PopoverContent align="end" className="w-auto p-2">
+      <PopoverContent align="end" className="max-h-(--available-height) w-auto overflow-y-auto p-2">
         <Calendar
           mode="range"
-          numberOfMonths={2}
+          numberOfMonths={wide ? 2 : 1}
           showOutsideDays={false}
           defaultMonth={selected?.from ?? new Date()}
           selected={selected}

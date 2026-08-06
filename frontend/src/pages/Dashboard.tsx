@@ -47,7 +47,11 @@ export function Dashboard() {
     <div className="grid gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Time range">
+        <div
+          className="flex w-full flex-wrap items-center gap-2 sm:w-auto"
+          role="group"
+          aria-label="Time range"
+        >
           {RANGES.map((key) => (
             <Button
               key={key}
