@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/AppLayout';
 import { Toaster } from '@/components/ui/sonner';
 import { Categories } from '@/pages/Categories';
 import { Dashboard } from '@/pages/Dashboard';
+import { ForgotPassword } from '@/pages/ForgotPassword';
 import { Receipts } from '@/pages/Receipts';
 import { SignIn } from '@/pages/SignIn';
 import { SignUp } from '@/pages/SignUp';
@@ -27,6 +28,8 @@ function App() {
             <Routes>
               <Route path="/sign-in" element={<SignIn />} />
               <Route path="/sign-up" element={<SignUp />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ForgotPassword />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Dashboard />} />
