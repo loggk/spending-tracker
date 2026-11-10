@@ -1,4 +1,9 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
+import type {
+  AssistantChatMessage,
+  AssistantChatRequest,
+  AssistantChatResponse,
+} from '@spending-tracker/shared';
 import { config } from '@/config';
 
 export class ApiError extends Error {
@@ -46,4 +51,14 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function askAssistant(
+  messages: AssistantChatMessage[],
+): Promise<AssistantChatResponse> {
+  const body: AssistantChatRequest = { messages };
+  return apiFetch<AssistantChatResponse>('/assistant/chat', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }

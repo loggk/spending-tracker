@@ -122,6 +122,29 @@ export class ApiStack extends cdk.Stack {
       }
     }
 
+    const assistant = this.createHandler(
+      'Assistant',
+      'assistant.ts',
+      { TABLE_NAME: props.table.tableName, BEDROCK_MODEL_ID },
+      { timeout: cdk.Duration.seconds(30), memorySize: 512 },
+    );
+    props.table.grantReadData(assistant);
+    assistant.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          `arn:aws:bedrock:*:${this.account}:inference-profile/${BEDROCK_MODEL_ID}`,
+          'arn:aws:bedrock:*::foundation-model/anthropic.*',
+        ],
+      }),
+    );
+
+    this.httpApi.addRoutes({
+      path: '/assistant/chat',
+      methods: [apigwv2.HttpMethod.POST],
+      integration: new HttpLambdaIntegration('AssistantIntegration', assistant),
+    });
+
     const parser = this.addReceipts(props);
 
     new Monitoring(this, 'Monitoring', {
