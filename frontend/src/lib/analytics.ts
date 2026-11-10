@@ -530,3 +530,161 @@ export function largestPurchase(transactions: Transaction[]): Transaction | null
 
   return largest;
 }
+
+export interface DayOfWeekTotal {
+  dayIndex: number;
+  name: string;
+  fullName: string;
+  isWeekend: boolean;
+  cents: number;
+  count: number;
+  dayCount: number;
+  averageCents: number;
+  share: number;
+}
+
+export interface DayOfWeekBreakdown {
+  days: DayOfWeekTotal[];
+  totalCents: number;
+  weekdayCents: number;
+  weekendCents: number;
+  weekdayShare: number;
+  weekendShare: number;
+  peakDay: DayOfWeekTotal | null;
+}
+
+export const DAY_OF_WEEK_NAMES = [
+  { name: 'Mon', fullName: 'Monday', isWeekend: false },
+  { name: 'Tue', fullName: 'Tuesday', isWeekend: false },
+  { name: 'Wed', fullName: 'Wednesday', isWeekend: false },
+  { name: 'Thu', fullName: 'Thursday', isWeekend: false },
+  { name: 'Fri', fullName: 'Friday', isWeekend: true },
+  { name: 'Sat', fullName: 'Saturday', isWeekend: true },
+  { name: 'Sun', fullName: 'Sunday', isWeekend: true },
+] as const;
+
+export interface DayOfWeekRange {
+  from?: string;
+  to?: string;
+}
+
+/**
+ * Aggregates spending across Monday through Sunday.
+ * Calculates Weekday vs. Weekend split and peak spending day.
+ */
+export function byDayOfWeek(
+  transactions: Transaction[],
+  range: DayOfWeekRange = {},
+): DayOfWeekBreakdown {
+  const days: DayOfWeekTotal[] = DAY_OF_WEEK_NAMES.map((d, index) => ({
+    dayIndex: index,
+    name: d.name,
+    fullName: d.fullName,
+    isWeekend: d.isWeekend,
+    cents: 0,
+    count: 0,
+    dayCount: 0,
+    averageCents: 0,
+    share: 0,
+  }));
+
+  // Count occurrences of each weekday in the date span
+  let minDate = range.from?.slice(0, 10);
+  let maxDate = range.to?.slice(0, 10);
+
+  if (!minDate || !maxDate) {
+    for (const t of transactions) {
+      if (t.amountCents <= 0) {
+        continue;
+      }
+      const d = t.date.slice(0, 10);
+      if (!minDate || d < minDate) {
+        minDate = d;
+      }
+      if (!maxDate || d > maxDate) {
+        maxDate = d;
+      }
+    }
+  }
+
+  const dayCounts = [0, 0, 0, 0, 0, 0, 0];
+  if (minDate && maxDate) {
+    const [sy, sm, sd] = minDate.split('-').map(Number);
+    const [ey, em, ed] = maxDate.split('-').map(Number);
+    if (sy && sm && sd && ey && em && ed) {
+      const cursor = new Date(Date.UTC(sy, sm - 1, sd));
+      const end = new Date(Date.UTC(ey, em - 1, ed));
+      while (cursor <= end) {
+        const dow = (cursor.getUTCDay() + 6) % 7;
+        const currentCount = dayCounts[dow];
+        if (currentCount !== undefined) {
+          dayCounts[dow] = currentCount + 1;
+        }
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+  }
+
+  for (const transaction of transactions) {
+    if (transaction.amountCents <= 0) {
+      continue;
+    }
+
+    const [y, m, d] = transaction.date.slice(0, 10).split('-').map(Number);
+    if (!y || !m || !d) {
+      continue;
+    }
+
+    const date = new Date(Date.UTC(y, m - 1, d));
+    const dow = (date.getUTCDay() + 6) % 7;
+    const target = days[dow];
+    if (target) {
+      target.cents += transaction.amountCents;
+      target.count += 1;
+    }
+  }
+
+  let totalCents = 0;
+  let weekdayCents = 0;
+  let weekendCents = 0;
+
+  for (const day of days) {
+    day.dayCount = dayCounts[day.dayIndex] ?? 0;
+    day.averageCents = day.dayCount > 0 ? Math.round(day.cents / day.dayCount) : day.cents;
+    totalCents += day.cents;
+    if (day.isWeekend) {
+      weekendCents += day.cents;
+    } else {
+      weekdayCents += day.cents;
+    }
+  }
+
+  if (totalCents > 0) {
+    for (const day of days) {
+      day.share = day.cents / totalCents;
+    }
+  }
+
+  let peakDay: DayOfWeekTotal | null = null;
+  if (totalCents > 0) {
+    for (const day of days) {
+      if (
+        !peakDay ||
+        day.cents > peakDay.cents ||
+        (day.cents === peakDay.cents && day.averageCents > peakDay.averageCents)
+      ) {
+        peakDay = day;
+      }
+    }
+  }
+
+  return {
+    days,
+    totalCents,
+    weekdayCents,
+    weekendCents,
+    weekdayShare: totalCents > 0 ? weekdayCents / totalCents : 0,
+    weekendShare: totalCents > 0 ? weekendCents / totalCents : 0,
+    peakDay,
+  };
+}

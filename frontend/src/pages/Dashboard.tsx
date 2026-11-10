@@ -12,12 +12,20 @@ import {
 } from 'lucide-react';
 import { CategoryBarChart } from '@/components/charts/CategoryBarChart';
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
+import { DayOfWeekChart } from '@/components/charts/DayOfWeekChart';
 import { PurchaseSizeHistogram } from '@/components/charts/PurchaseSizeHistogram';
 import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
 import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
 import { PurchaseSizeCustomizerDialog } from '@/components/PurchaseSizeCustomizerDialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   DEFAULT_PURCHASE_SIZE_THRESHOLDS,
@@ -26,6 +34,7 @@ import {
   RANGE_LABELS,
   byCategory,
   byDayAndCategory,
+  byDayOfWeek,
   byMonthAndCategory,
   byPurchaseSize,
   isDayGranularity,
@@ -116,6 +125,16 @@ export function Dashboard() {
     [rows, histogramThresholds],
   );
   const hasPurchases = rows.some((row) => row.amountCents > 0);
+
+  const dowBreakdown = useMemo(() => byDayOfWeek(rows, query), [rows, query]);
+  const dowWeekdayPct = Math.round(dowBreakdown.weekdayShare * 100);
+  const dowWeekendPct = 100 - dowWeekdayPct;
+  const dowPeakDay = dowBreakdown.peakDay;
+  const dowPeakAvg = dowPeakDay
+    ? dowPeakDay.averageCents > 0 && dowPeakDay.averageCents < 100
+      ? formatAmount(dowPeakDay.averageCents)
+      : `$${Math.round(dowPeakDay.averageCents / 100).toLocaleString()}`
+    : null;
 
   function handleHistogramMetricChange(next: 'count' | 'cents') {
     setHistogramMetric(next);
@@ -332,6 +351,54 @@ export function Dashboard() {
             <CardContent>
               {hasPurchases ? (
                 <PurchaseSizeHistogram data={histogramData} metric={histogramMetric} />
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No purchases recorded in this period.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-medium">Day-of-week patterns</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {dowBreakdown.totalCents > 0 ? (
+                <>
+                  <div className="space-y-1.5 rounded-lg border bg-muted/20 p-3">
+                    <div className="flex justify-between text-xs">
+                      <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                        <span className="size-2 rounded-full bg-[#2a78d6]" />
+                        Weekday: <span className="font-semibold text-foreground">{dowWeekdayPct}%</span>{' '}
+                        <span className="text-muted-foreground/75">
+                          ({formatAmount(dowBreakdown.weekdayCents)})
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                        <span className="size-2 rounded-full bg-[#eb6834]" />
+                        Weekend: <span className="font-semibold text-foreground">{dowWeekendPct}%</span>{' '}
+                        <span className="text-muted-foreground/75">
+                          ({formatAmount(dowBreakdown.weekendCents)})
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="bg-[#2a78d6] transition-all"
+                        style={{ width: `${dowWeekdayPct}%` }}
+                        title={`Weekday: ${dowWeekdayPct}%`}
+                      />
+                      <div
+                        className="bg-[#eb6834] transition-all"
+                        style={{ width: `${dowWeekendPct}%` }}
+                        title={`Weekend: ${dowWeekendPct}%`}
+                      />
+                    </div>
+                  </div>
+
+                  <DayOfWeekChart data={dowBreakdown.days} />
+                </>
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   No purchases recorded in this period.

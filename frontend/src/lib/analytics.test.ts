@@ -4,6 +4,7 @@ import {
   byCategory,
   byDay,
   byDayAndCategory,
+  byDayOfWeek,
   byMonth,
   byMonthAndCategory,
   byPurchaseSize,
@@ -487,5 +488,98 @@ describe('largestPurchase', () => {
     const later = transaction('2026-08-05', 5000);
 
     expect(largestPurchase([earlier, later])).toBe(later);
+  });
+});
+
+describe('byDayOfWeek', () => {
+  it('returns all 7 days Monday to Sunday with zero counts for empty transactions', () => {
+    const breakdown = byDayOfWeek([]);
+    expect(breakdown.days).toHaveLength(7);
+    expect(breakdown.days.map((d) => d.name)).toEqual([
+      'Mon',
+      'Tue',
+      'Wed',
+      'Thu',
+      'Fri',
+      'Sat',
+      'Sun',
+    ]);
+    expect(breakdown.totalCents).toBe(0);
+    expect(breakdown.weekdayCents).toBe(0);
+    expect(breakdown.weekendCents).toBe(0);
+    expect(breakdown.weekdayShare).toBe(0);
+    expect(breakdown.weekendShare).toBe(0);
+    expect(breakdown.peakDay).toBeNull();
+  });
+
+  it('aggregates spending by day of week and computes weekend vs weekday split (including Friday as weekend)', () => {
+    // 2026-08-03 is Monday, 2026-08-07 is Friday, 2026-08-08 is Saturday, 2026-08-09 is Sunday
+    const txs = [
+      transaction('2026-08-03', 2500), // Monday: $25 (weekday)
+      transaction('2026-08-07', 3500), // Friday: $35 (weekend)
+      transaction('2026-08-08', 2500), // Saturday: $25 (weekend)
+      transaction('2026-08-09', 1500), // Sunday: $15 (weekend)
+    ];
+
+    const breakdown = byDayOfWeek(txs, { from: '2026-08-03', to: '2026-08-09' });
+
+    expect(breakdown.totalCents).toBe(10000); // $100
+    expect(breakdown.weekdayCents).toBe(2500); // $25 (Monday)
+    expect(breakdown.weekendCents).toBe(7500); // $75 (Friday + Saturday + Sunday)
+    expect(breakdown.weekdayShare).toBeCloseTo(0.25);
+    expect(breakdown.weekendShare).toBeCloseTo(0.75);
+
+    expect(breakdown.peakDay?.name).toBe('Fri');
+    expect(breakdown.peakDay?.fullName).toBe('Friday');
+    expect(breakdown.peakDay?.cents).toBe(3500);
+
+    // Monday
+    expect(breakdown.days[0]?.cents).toBe(2500);
+    expect(breakdown.days[0]?.count).toBe(1);
+    expect(breakdown.days[0]?.isWeekend).toBe(false);
+
+    // Friday
+    expect(breakdown.days[4]?.cents).toBe(3500);
+    expect(breakdown.days[4]?.isWeekend).toBe(true);
+
+    // Saturday
+    expect(breakdown.days[5]?.cents).toBe(2500);
+    expect(breakdown.days[5]?.isWeekend).toBe(true);
+
+    // Sunday
+    expect(breakdown.days[6]?.cents).toBe(1500);
+    expect(breakdown.days[6]?.isWeekend).toBe(true);
+  });
+
+  it('calculates average spend based on day occurrences in range', () => {
+    // Range spanning two full weeks: Aug 3 (Mon) through Aug 16 (Sun)
+    // 2 Mondays, 2 Saturdays, etc.
+    const txs = [
+      transaction('2026-08-08', 20000), // Saturday week 1 ($200)
+      transaction('2026-08-15', 8400), // Saturday week 2 ($84)
+    ];
+
+    const breakdown = byDayOfWeek(txs, { from: '2026-08-03', to: '2026-08-16' });
+    const sat = breakdown.days[5];
+
+    expect(sat?.cents).toBe(28400); // $284 total
+    expect(sat?.dayCount).toBe(2); // 2 Saturdays in the 14-day range
+    expect(sat?.averageCents).toBe(14200); // $142 average!
+    expect(breakdown.peakDay?.name).toBe('Sat');
+    expect(breakdown.peakDay?.averageCents).toBe(14200);
+  });
+
+  it('ignores refunds and zero amounts', () => {
+    const txs = [
+      transaction('2026-08-08', 5000), // Saturday: $50
+      transaction('2026-08-08', -2000), // refund
+      transaction('2026-08-09', 0), // zero
+    ];
+
+    const breakdown = byDayOfWeek(txs);
+    expect(breakdown.totalCents).toBe(5000);
+    expect(breakdown.weekendCents).toBe(5000);
+    expect(breakdown.weekdayCents).toBe(0);
+    expect(breakdown.peakDay?.name).toBe('Sat');
   });
 });
