@@ -5,6 +5,7 @@ import {
   byDay,
   byDayAndCategory,
   byDayOfWeek,
+  byHeatmap,
   byMonth,
   byMonthAndCategory,
   byPurchaseSize,
@@ -581,5 +582,73 @@ describe('byDayOfWeek', () => {
     expect(breakdown.weekendCents).toBe(5000);
     expect(breakdown.weekdayCents).toBe(0);
     expect(breakdown.peakDay?.name).toBe('Sat');
+  });
+});
+
+describe('byHeatmap', () => {
+  it('builds calendar month grid with correct day offsets and tracks streaks', () => {
+    // Aug 2026: Aug 1 is Saturday (offset = 5 for Mon-start)
+    // Spending on Aug 1 ($100), Aug 5 ($50).
+    // Today is Aug 9.
+    const txs = [
+      transaction('2026-08-01', 10000), // $100
+      transaction('2026-08-05', 5000), // $50
+    ];
+
+    const result = byHeatmap(txs, { from: '2026-08-01', to: '2026-08-31' }, '2026-08-09');
+
+    expect(result.months).toHaveLength(1);
+    const aug = result.months[0];
+    expect(aug?.month).toBe('2026-08');
+    expect(aug?.firstDayOffset).toBe(5); // Saturday
+    expect(aug?.days).toHaveLength(31);
+
+    // Days 1 to 9 are active (non-future), days 10 to 31 are future
+    expect(result.totalDays).toBe(9);
+    // Non-spend days among 1..9: Aug 2, 3, 4, 6, 7, 8, 9 = 7 days
+    expect(result.noSpendDays).toBe(7);
+    expect(result.noSpendPercentage).toBe(78); // 7/9 = 78%
+
+    // Streaks:
+    // Aug 1: spend
+    // Aug 2, 3, 4: no-spend (streak 3)
+    // Aug 5: spend
+    // Aug 6, 7, 8, 9: no-spend (streak 4)
+    expect(result.recordStreak).toBe(4);
+    expect(result.currentStreak).toBe(4); // Aug 6, 7, 8, 9
+
+    // Check color levels: max spend is $100 (Aug 1) -> level 4. Aug 5 is $50 (50%) -> level 2.
+    const day1 = aug?.days[0];
+    const day2 = aug?.days[1];
+    const day5 = aug?.days[4];
+    const day10 = aug?.days[9];
+
+    expect(day1?.cents).toBe(10000);
+    expect(day1?.level).toBe(4);
+    expect(day1?.isNoSpend).toBe(false);
+
+    expect(day2?.cents).toBe(0);
+    expect(day2?.level).toBe(0);
+    expect(day2?.isNoSpend).toBe(true);
+
+    expect(day5?.cents).toBe(5000);
+    expect(day5?.level).toBe(2);
+
+    expect(day10?.isFuture).toBe(true);
+    expect(day10?.isNoSpend).toBe(false);
+  });
+
+  it('resets current streak to 0 if today has spending', () => {
+    const txs = [
+      transaction('2026-08-01', 0),
+      transaction('2026-08-02', 0),
+      transaction('2026-08-03', 2500), // Today
+    ];
+
+    const result = byHeatmap(txs, { from: '2026-08-01', to: '2026-08-03' }, '2026-08-03');
+
+    expect(result.currentStreak).toBe(0);
+    expect(result.recordStreak).toBe(2);
+    expect(result.noSpendDays).toBe(2);
   });
 });

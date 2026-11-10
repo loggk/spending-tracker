@@ -14,6 +14,7 @@ import { CategoryBarChart } from '@/components/charts/CategoryBarChart';
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
 import { DayOfWeekChart } from '@/components/charts/DayOfWeekChart';
 import { PurchaseSizeHistogram } from '@/components/charts/PurchaseSizeHistogram';
+import { SpendingHeatmap } from '@/components/charts/SpendingHeatmap';
 import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
 import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
 import { PurchaseSizeCustomizerDialog } from '@/components/PurchaseSizeCustomizerDialog';
@@ -35,6 +36,7 @@ import {
   byCategory,
   byDayAndCategory,
   byDayOfWeek,
+  byHeatmap,
   byMonthAndCategory,
   byPurchaseSize,
   isDayGranularity,
@@ -125,6 +127,8 @@ export function Dashboard() {
     [rows, histogramThresholds],
   );
   const hasPurchases = rows.some((row) => row.amountCents > 0);
+
+  const heatmapBreakdown = useMemo(() => byHeatmap(rows, query), [rows, query]);
 
   const dowBreakdown = useMemo(() => byDayOfWeek(rows, query), [rows, query]);
   const dowWeekdayPct = Math.round(dowBreakdown.weekdayShare * 100);
@@ -362,6 +366,24 @@ export function Dashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-medium">Day-of-week patterns</CardTitle>
+              {dowBreakdown.totalCents > 0 && (
+                <CardDescription className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:text-sm">
+                  <span className="font-medium text-foreground">
+                    {dowWeekendPct}% Weekend / {dowWeekdayPct}% Weekday
+                  </span>
+                  {dowPeakDay && (
+                    <>
+                      <span className="text-muted-foreground/60">·</span>
+                      <span>
+                        <strong className="font-medium text-foreground">
+                          {dowPeakDay.fullName}
+                        </strong>{' '}
+                        is your highest spending day (avg {dowPeakAvg})
+                      </span>
+                    </>
+                  )}
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               {dowBreakdown.totalCents > 0 ? (
@@ -404,6 +426,18 @@ export function Dashboard() {
                   No purchases recorded in this period.
                 </p>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-medium">Daily spending heatmap</CardTitle>
+              <CardDescription>
+                Calendar view of daily spend intensity and zero-spend discipline streaks.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SpendingHeatmap breakdown={heatmapBreakdown} />
             </CardContent>
           </Card>
         </>

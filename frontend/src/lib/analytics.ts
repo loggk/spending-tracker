@@ -688,3 +688,219 @@ export function byDayOfWeek(
     peakDay,
   };
 }
+
+export interface HeatmapDay {
+  date: string;
+  dayOfMonth: number;
+  dayOfWeek: number;
+  month: string;
+  cents: number;
+  count: number;
+  isNoSpend: boolean;
+  level: 0 | 1 | 2 | 3 | 4;
+  isFuture: boolean;
+}
+
+export interface HeatmapMonth {
+  month: string;
+  label: string;
+  firstDayOffset: number;
+  days: HeatmapDay[];
+  totalCents: number;
+  noSpendDays: number;
+}
+
+export interface HeatmapBreakdown {
+  months: HeatmapMonth[];
+  allDays: HeatmapDay[];
+  totalDays: number;
+  noSpendDays: number;
+  noSpendPercentage: number;
+  currentStreak: number;
+  recordStreak: number;
+  totalCents: number;
+}
+
+export interface HeatmapRange {
+  from?: string;
+  to?: string;
+}
+
+/**
+ * Transforms transactions into a calendar-based daily spending heatmap.
+ * Calculates No-Spend Days, current streak, and record streak of zero-spend days.
+ */
+export function byHeatmap(
+  transactions: Transaction[],
+  range: HeatmapRange = {},
+  todayStr: string = new Date().toISOString().slice(0, 10),
+): HeatmapBreakdown {
+  const spendByDate = new Map<string, { cents: number; count: number }>();
+  let maxDailyCents = 0;
+
+  for (const t of transactions) {
+    if (t.amountCents <= 0) {
+      continue;
+    }
+    const d = t.date.slice(0, 10);
+    const existing = spendByDate.get(d) ?? { cents: 0, count: 0 };
+    existing.cents += t.amountCents;
+    existing.count += 1;
+    spendByDate.set(d, existing);
+    if (existing.cents > maxDailyCents) {
+      maxDailyCents = existing.cents;
+    }
+  }
+
+  let fromDate = range.from?.slice(0, 10);
+  let toDate = range.to?.slice(0, 10);
+
+  if (!fromDate || !toDate) {
+    for (const t of transactions) {
+      if (t.amountCents <= 0) {
+        continue;
+      }
+      const d = t.date.slice(0, 10);
+      if (!fromDate || d < fromDate) {
+        fromDate = d;
+      }
+      if (!toDate || d > toDate) {
+        toDate = d;
+      }
+    }
+  }
+
+  if (!fromDate) {
+    fromDate = todayStr;
+  }
+  if (!toDate) {
+    toDate = todayStr;
+  }
+
+  const startMonth = fromDate.slice(0, 7);
+  const endMonth = toDate.slice(0, 7);
+
+  const [sy, sm] = startMonth.split('-').map(Number);
+  const [ey, em] = endMonth.split('-').map(Number);
+
+  const months: HeatmapMonth[] = [];
+  const allDays: HeatmapDay[] = [];
+
+  if (sy && sm && ey && em) {
+    let currentY = sy;
+    let currentM = sm;
+
+    while (currentY < ey || (currentY === ey && currentM <= em)) {
+      const monthStr = `${currentY}-${String(currentM).padStart(2, '0')}`;
+      const daysInMonth = new Date(Date.UTC(currentY, currentM, 0)).getUTCDate();
+      const firstDayOffset = (new Date(Date.UTC(currentY, currentM - 1, 1)).getUTCDay() + 6) % 7;
+      const monthLabel = new Date(Date.UTC(currentY, currentM - 1, 1)).toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      });
+
+      const monthDays: HeatmapDay[] = [];
+      let monthTotalCents = 0;
+      let monthNoSpendDays = 0;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+        const dow = (new Date(Date.UTC(currentY, currentM - 1, day)).getUTCDay() + 6) % 7;
+        const isFuture = dateStr > todayStr;
+        const entry = spendByDate.get(dateStr);
+        const cents = entry ? entry.cents : 0;
+        const count = entry ? entry.count : 0;
+        const isNoSpend = !isFuture && cents === 0;
+
+        let level: 0 | 1 | 2 | 3 | 4 = 0;
+        if (!isFuture && cents > 0) {
+          if (maxDailyCents <= 0) {
+            level = 1;
+          } else {
+            const ratio = cents / maxDailyCents;
+            level = ratio <= 0.25 ? 1 : ratio <= 0.5 ? 2 : ratio <= 0.75 ? 3 : 4;
+          }
+        }
+
+        const heatmapDay: HeatmapDay = {
+          date: dateStr,
+          dayOfMonth: day,
+          dayOfWeek: dow,
+          month: monthStr,
+          cents,
+          count,
+          isNoSpend,
+          level,
+          isFuture,
+        };
+
+        monthDays.push(heatmapDay);
+        allDays.push(heatmapDay);
+
+        monthTotalCents += cents;
+        if (isNoSpend) {
+          monthNoSpendDays += 1;
+        }
+      }
+
+      months.push({
+        month: monthStr,
+        label: monthLabel,
+        firstDayOffset,
+        days: monthDays,
+        totalCents: monthTotalCents,
+        noSpendDays: monthNoSpendDays,
+      });
+
+      currentM += 1;
+      if (currentM > 12) {
+        currentM = 1;
+        currentY += 1;
+      }
+    }
+  }
+
+  const activeDays = allDays.filter((d) => !d.isFuture);
+  let recordStreak = 0;
+  let runningStreak = 0;
+  let totalCents = 0;
+  let noSpendDays = 0;
+
+  for (const day of activeDays) {
+    totalCents += day.cents;
+    if (day.isNoSpend) {
+      noSpendDays += 1;
+      runningStreak += 1;
+      if (runningStreak > recordStreak) {
+        recordStreak = runningStreak;
+      }
+    } else {
+      runningStreak = 0;
+    }
+  }
+
+  let currentStreak = 0;
+  for (let i = activeDays.length - 1; i >= 0; i--) {
+    const day = activeDays[i];
+    if (day && day.isNoSpend) {
+      currentStreak += 1;
+    } else {
+      break;
+    }
+  }
+
+  const totalDays = activeDays.length;
+  const noSpendPercentage = totalDays > 0 ? Math.round((noSpendDays / totalDays) * 100) : 0;
+
+  return {
+    months,
+    allDays,
+    totalDays,
+    noSpendDays,
+    noSpendPercentage,
+    currentStreak,
+    recordStreak,
+    totalCents,
+  };
+}
