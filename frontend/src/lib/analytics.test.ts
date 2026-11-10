@@ -6,10 +6,13 @@ import {
   byDayAndCategory,
   byMonth,
   byMonthAndCategory,
+  byPurchaseSize,
   dayLabel,
+  formatThreshold,
   isDayGranularity,
   resolveRange,
   totalCents,
+  validateThresholds,
 } from './analytics';
 
 const transaction = (date: string, amountCents: number, categoryId = 'food'): Transaction => ({
@@ -332,5 +335,125 @@ describe('byDayAndCategory', () => {
 
     expect(days.map((entry) => entry.totals)).toEqual([{ '': 100 }, {}, { food: 200 }]);
     expect(series.map((entry) => entry.name)).toEqual(['Food', 'Uncategorized']);
+  });
+});
+
+describe('formatThreshold', () => {
+  it('formats whole dollar amounts without decimals', () => {
+    expect(formatThreshold(15)).toBe('$15');
+    expect(formatThreshold(500)).toBe('$500');
+    expect(formatThreshold(1000)).toBe('$1,000');
+  });
+
+  it('formats fractional dollar amounts with two decimals', () => {
+    expect(formatThreshold(15.5)).toBe('$15.50');
+    expect(formatThreshold(12.99)).toBe('$12.99');
+  });
+});
+
+describe('validateThresholds', () => {
+  it('accepts strictly increasing positive numbers', () => {
+    expect(validateThresholds([15, 50, 150, 500])).toEqual([15, 50, 150, 500]);
+    expect(validateThresholds([10, 20, 30, 40])).toEqual([10, 20, 30, 40]);
+  });
+
+  it('rejects arrays with wrong length', () => {
+    expect(validateThresholds([15, 50, 150])).toBeNull();
+    expect(validateThresholds([15, 50, 150, 500, 1000])).toBeNull();
+    expect(validateThresholds([])).toBeNull();
+  });
+
+  it('rejects non-increasing or duplicate cutoffs', () => {
+    expect(validateThresholds([15, 50, 50, 500])).toBeNull();
+    expect(validateThresholds([15, 50, 30, 500])).toBeNull();
+    expect(validateThresholds([500, 150, 50, 15])).toBeNull();
+  });
+
+  it('rejects negative or zero cutoffs', () => {
+    expect(validateThresholds([0, 50, 150, 500])).toBeNull();
+    expect(validateThresholds([-10, 50, 150, 500])).toBeNull();
+  });
+
+  it('rejects non-numeric inputs', () => {
+    expect(validateThresholds(['15', 50, 150, 500])).toBeNull();
+    expect(validateThresholds(null)).toBeNull();
+    expect(validateThresholds(undefined)).toBeNull();
+  });
+});
+
+describe('byPurchaseSize', () => {
+  it('returns all 5 buckets with zero counts for empty transactions', () => {
+    const buckets = byPurchaseSize([]);
+    expect(buckets).toHaveLength(5);
+    expect(buckets.map((b) => b.name)).toEqual(['Micro', 'Small', 'Medium', 'Large', 'Major']);
+    expect(buckets.map((b) => b.rangeLabel)).toEqual([
+      '<$15',
+      '$15–$50',
+      '$50–$150',
+      '$150–$500',
+      '>$500',
+    ]);
+    expect(buckets.every((b) => b.count === 0 && b.cents === 0)).toBe(true);
+  });
+
+  it('classifies transactions across default size brackets', () => {
+    const txs = [
+      transaction('2026-08-01', 500), // $5 (Micro)
+      transaction('2026-08-01', 1499), // $14.99 (Micro)
+      transaction('2026-08-02', 1500), // $15 (Small)
+      transaction('2026-08-02', 4999), // $49.99 (Small)
+      transaction('2026-08-03', 5000), // $50 (Medium)
+      transaction('2026-08-03', 14999), // $149.99 (Medium)
+      transaction('2026-08-04', 15000), // $150 (Large)
+      transaction('2026-08-04', 49999), // $499.99 (Large)
+      transaction('2026-08-05', 50000), // $500 (Major)
+      transaction('2026-08-05', 100000), // $1,000 (Major)
+    ];
+
+    const buckets = byPurchaseSize(txs);
+    expect(buckets.map((b) => b.count)).toEqual([2, 2, 2, 2, 2]);
+    expect(buckets.map((b) => b.countShare)).toEqual([0.2, 0.2, 0.2, 0.2, 0.2]);
+
+    expect(buckets[0]?.cents).toBe(1999);
+    expect(buckets[1]?.cents).toBe(6499);
+    expect(buckets[2]?.cents).toBe(19999);
+    expect(buckets[3]?.cents).toBe(64999);
+    expect(buckets[4]?.cents).toBe(150000);
+  });
+
+  it('ignores refunds and zero amounts', () => {
+    const txs = [
+      transaction('2026-08-01', 1000), // $10 (Micro)
+      transaction('2026-08-02', -500), // refund
+      transaction('2026-08-03', 0), // zero
+    ];
+
+    const buckets = byPurchaseSize(txs);
+    expect(buckets[0]?.count).toBe(1);
+    expect(buckets[0]?.cents).toBe(1000);
+    expect(buckets[0]?.countShare).toBe(1);
+    expect(buckets[0]?.centsShare).toBe(1);
+    expect(buckets.slice(1).every((b) => b.count === 0)).toBe(true);
+  });
+
+  it('supports custom threshold cutoffs', () => {
+    const customThresholds: [number, number, number, number] = [20, 100, 300, 1000];
+    const txs = [
+      transaction('2026-08-01', 1800), // $18 (Micro <$20)
+      transaction('2026-08-02', 5000), // $50 (Small $20–$100)
+      transaction('2026-08-03', 25000), // $250 (Medium $100–$300)
+      transaction('2026-08-04', 50000), // $500 (Large $300–$1,000)
+      transaction('2026-08-05', 150000), // $1,500 (Major >$1,000)
+    ];
+
+    const buckets = byPurchaseSize(txs, customThresholds);
+    expect(buckets.map((b) => b.rangeLabel)).toEqual([
+      '<$20',
+      '$20–$100',
+      '$100–$300',
+      '$300–$1,000',
+      '>$1,000',
+    ]);
+    expect(buckets.map((b) => b.count)).toEqual([1, 1, 1, 1, 1]);
   });
 });

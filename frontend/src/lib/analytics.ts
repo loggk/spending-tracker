@@ -329,3 +329,179 @@ export function isDayGranularity(
   const days = Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24)) + 1;
   return days > 0 && days < 90;
 }
+
+export const DEFAULT_PURCHASE_SIZE_THRESHOLDS = [15, 50, 150, 500] as const;
+
+export type PurchaseSizeThresholds = [number, number, number, number];
+
+export type PurchaseSizeKey = 'micro' | 'small' | 'medium' | 'large' | 'major';
+
+export interface PurchaseSizeBucket {
+  key: PurchaseSizeKey;
+  name: string;
+  rangeLabel: string;
+  minCents: number;
+  maxCents: number | null;
+  count: number;
+  cents: number;
+  countShare: number;
+  centsShare: number;
+}
+
+/** Formats a cutoff dollar value cleanly (e.g. 15 -> "$15", 15.5 -> "$15.50", 1500 -> "$1,500"). */
+export function formatThreshold(dollars: number): string {
+  return `$${dollars.toLocaleString('en-US', {
+    minimumFractionDigits: Number.isInteger(dollars) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** Validates that thresholds are four strictly increasing positive numbers. */
+export function validateThresholds(thresholds: unknown): PurchaseSizeThresholds | null {
+  if (!Array.isArray(thresholds) || thresholds.length !== 4) {
+    return null;
+  }
+  const [t1, t2, t3, t4] = thresholds;
+  if (
+    typeof t1 !== 'number' ||
+    typeof t2 !== 'number' ||
+    typeof t3 !== 'number' ||
+    typeof t4 !== 'number' ||
+    !Number.isFinite(t1) ||
+    !Number.isFinite(t2) ||
+    !Number.isFinite(t3) ||
+    !Number.isFinite(t4)
+  ) {
+    return null;
+  }
+  if (t1 <= 0 || t2 <= t1 || t3 <= t2 || t4 <= t3) {
+    return null;
+  }
+  return [t1, t2, t3, t4];
+}
+
+/**
+ * Groups purchases (transactions where amountCents > 0) into 5 size brackets:
+ * Micro (<T1), Small (T1–T2), Medium (T2–T3), Large (T3–T4), Major (>T4).
+ */
+export function byPurchaseSize(
+  transactions: Transaction[],
+  thresholds: PurchaseSizeThresholds = [
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[0],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[1],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[2],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[3],
+  ],
+): PurchaseSizeBucket[] {
+  const valid = validateThresholds(thresholds) ?? [
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[0],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[1],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[2],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[3],
+  ];
+
+  const c1 = Math.round(valid[0] * 100);
+  const c2 = Math.round(valid[1] * 100);
+  const c3 = Math.round(valid[2] * 100);
+  const c4 = Math.round(valid[3] * 100);
+
+  const buckets: PurchaseSizeBucket[] = [
+    {
+      key: 'micro',
+      name: 'Micro',
+      rangeLabel: `<${formatThreshold(valid[0])}`,
+      minCents: 0,
+      maxCents: c1,
+      count: 0,
+      cents: 0,
+      countShare: 0,
+      centsShare: 0,
+    },
+    {
+      key: 'small',
+      name: 'Small',
+      rangeLabel: `${formatThreshold(valid[0])}–${formatThreshold(valid[1])}`,
+      minCents: c1,
+      maxCents: c2,
+      count: 0,
+      cents: 0,
+      countShare: 0,
+      centsShare: 0,
+    },
+    {
+      key: 'medium',
+      name: 'Medium',
+      rangeLabel: `${formatThreshold(valid[1])}–${formatThreshold(valid[2])}`,
+      minCents: c2,
+      maxCents: c3,
+      count: 0,
+      cents: 0,
+      countShare: 0,
+      centsShare: 0,
+    },
+    {
+      key: 'large',
+      name: 'Large',
+      rangeLabel: `${formatThreshold(valid[2])}–${formatThreshold(valid[3])}`,
+      minCents: c3,
+      maxCents: c4,
+      count: 0,
+      cents: 0,
+      countShare: 0,
+      centsShare: 0,
+    },
+    {
+      key: 'major',
+      name: 'Major',
+      rangeLabel: `>${formatThreshold(valid[3])}`,
+      minCents: c4,
+      maxCents: null,
+      count: 0,
+      cents: 0,
+      countShare: 0,
+      centsShare: 0,
+    },
+  ];
+
+  let totalPurchasesCount = 0;
+  let totalPurchasesCents = 0;
+
+  for (const transaction of transactions) {
+    if (transaction.amountCents <= 0) {
+      continue;
+    }
+
+    totalPurchasesCount += 1;
+    totalPurchasesCents += transaction.amountCents;
+
+    let target = buckets[4];
+    if (transaction.amountCents < c1) {
+      target = buckets[0];
+    } else if (transaction.amountCents < c2) {
+      target = buckets[1];
+    } else if (transaction.amountCents < c3) {
+      target = buckets[2];
+    } else if (transaction.amountCents < c4) {
+      target = buckets[3];
+    }
+
+    if (target) {
+      target.count += 1;
+      target.cents += transaction.amountCents;
+    }
+  }
+
+  if (totalPurchasesCount > 0) {
+    for (const bucket of buckets) {
+      bucket.countShare = bucket.count / totalPurchasesCount;
+    }
+  }
+
+  if (totalPurchasesCents > 0) {
+    for (const bucket of buckets) {
+      bucket.centsShare = bucket.cents / totalPurchasesCents;
+    }
+  }
+
+  return buckets;
+}

@@ -1,32 +1,86 @@
 import { useMemo, useState } from 'react';
-import { ChartBarIcon, ChartColumnIcon, ChartColumnStackedIcon, ChartPieIcon } from 'lucide-react';
+import {
+  ChartBarIcon,
+  ChartColumnIcon,
+  ChartColumnStackedIcon,
+  ChartPieIcon,
+  DollarSignIcon,
+  HashIcon,
+  SlidersHorizontalIcon,
+} from 'lucide-react';
 import { CategoryBarChart } from '@/components/charts/CategoryBarChart';
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
+import { PurchaseSizeHistogram } from '@/components/charts/PurchaseSizeHistogram';
 import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
-import { type DateRange, DateRangePicker } from '@/components/DateRangePicker';
+import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
+import { PurchaseSizeCustomizerDialog } from '@/components/PurchaseSizeCustomizerDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
+  DEFAULT_PURCHASE_SIZE_THRESHOLDS,
+  type PurchaseSizeThresholds,
   type RangeKey,
   RANGE_LABELS,
   byCategory,
   byDayAndCategory,
   byMonthAndCategory,
+  byPurchaseSize,
   isDayGranularity,
   resolveRange,
   totalCents,
+  validateThresholds,
 } from '@/lib/analytics';
 import { formatAmount } from '@/lib/format';
 import { useCategories, useTransactions } from '@/lib/queries';
 
 const RANGES: RangeKey[] = ['month', 'year', 'all'];
 
+const STORAGE_KEY_HISTOGRAM_THRESHOLDS = 'spending-tracker:purchase-size-thresholds';
+const STORAGE_KEY_HISTOGRAM_METRIC = 'spending-tracker:purchase-size-metric';
+
+function loadInitialThresholds(): PurchaseSizeThresholds {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_HISTOGRAM_THRESHOLDS);
+    if (raw) {
+      const validated = validateThresholds(JSON.parse(raw));
+      if (validated) {
+        return validated;
+      }
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return [
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[0],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[1],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[2],
+    DEFAULT_PURCHASE_SIZE_THRESHOLDS[3],
+  ];
+}
+
+function loadInitialHistogramMetric(): 'count' | 'cents' {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_HISTOGRAM_METRIC);
+    if (raw === 'count' || raw === 'cents') {
+      return raw;
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return 'count';
+}
+
 export function Dashboard() {
   const [preset, setPreset] = useState<RangeKey>('month');
   const [custom, setCustom] = useState<DateRange>({});
   const [categoryView, setCategoryView] = useState<'bar' | 'pie'>('bar');
   const [monthView, setMonthView] = useState<'total' | 'stacked'>('total');
+  const [histogramMetric, setHistogramMetric] =
+    useState<'count' | 'cents'>(loadInitialHistogramMetric);
+  const [histogramThresholds, setHistogramThresholds] =
+    useState<PurchaseSizeThresholds>(loadInitialThresholds);
+  const [customizingHistogram, setCustomizingHistogram] = useState(false);
 
   const customActive = Boolean(custom.from ?? custom.to);
   const query = useMemo(
@@ -49,6 +103,30 @@ export function Dashboard() {
   const hasTrend = daily ? daily.days.length > 0 : (monthly?.months.length ?? 0) > 1;
   const trendTitle = isDaily ? 'Spending by day' : 'Spending by month';
   const trendTotalLabel = isDaily ? 'Daily totals' : 'Monthly totals';
+
+  const histogramData = useMemo(
+    () => byPurchaseSize(rows, histogramThresholds),
+    [rows, histogramThresholds],
+  );
+  const hasPurchases = rows.some((row) => row.amountCents > 0);
+
+  function handleHistogramMetricChange(next: 'count' | 'cents') {
+    setHistogramMetric(next);
+    try {
+      localStorage.setItem(STORAGE_KEY_HISTOGRAM_METRIC, next);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+
+  function handleHistogramThresholdsChange(next: PurchaseSizeThresholds) {
+    setHistogramThresholds(next);
+    try {
+      localStorage.setItem(STORAGE_KEY_HISTOGRAM_THRESHOLDS, JSON.stringify(next));
+    } catch {
+      // Ignore storage errors
+    }
+  }
 
   const total = totalCents(rows);
   const average = rows.length === 0 ? 0 : Math.round(total / rows.length);
@@ -171,8 +249,50 @@ export function Dashboard() {
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-medium">Purchase size distribution</CardTitle>
+              <CardAction>
+                <div className="flex items-center gap-1.5">
+                  <ChartViewToggle
+                    value={histogramMetric}
+                    onChange={handleHistogramMetricChange}
+                    options={[
+                      { value: 'count', label: 'Transaction count', icon: <HashIcon /> },
+                      { value: 'cents', label: 'Total dollars', icon: <DollarSignIcon /> },
+                    ]}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label="Customize purchase brackets"
+                    onClick={() => setCustomizingHistogram(true)}
+                  >
+                    <SlidersHorizontalIcon />
+                  </Button>
+                </div>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              {hasPurchases ? (
+                <PurchaseSizeHistogram data={histogramData} metric={histogramMetric} />
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No purchases recorded in this period.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
+
+      <PurchaseSizeCustomizerDialog
+        open={customizingHistogram}
+        thresholds={histogramThresholds}
+        onSave={handleHistogramThresholdsChange}
+        onClose={() => setCustomizingHistogram(false)}
+      />
     </div>
   );
 }
