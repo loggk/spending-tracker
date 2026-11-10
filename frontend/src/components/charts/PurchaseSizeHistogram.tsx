@@ -166,8 +166,7 @@ function HistogramTooltip({ active, payload }: HistogramTooltipProps) {
     <div className="grid min-w-44 gap-1.5 rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
       <div>
         <p className="font-medium text-foreground">
-          {bucket.name}{' '}
-          <span className="text-xs text-muted-foreground">({bucket.rangeLabel})</span>
+          {bucket.name} <span className="text-xs text-muted-foreground">({bucket.rangeLabel})</span>
         </p>
       </div>
       <div className="grid gap-1 border-t pt-1.5 text-xs">

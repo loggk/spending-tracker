@@ -51,10 +51,7 @@ export function DayOfWeekChart({ data, metric = 'cents' }: DayOfWeekChartProps) 
             axisLine={false}
             width={wide ? 64 : 48}
             tick={axisTick}
-            domain={[
-              0,
-              (dataMax: number) => (dataMax <= 0 ? 1000 : Math.ceil(dataMax * 1.18)),
-            ]}
+            domain={[0, (dataMax: number) => (dataMax <= 0 ? 1000 : Math.ceil(dataMax * 1.18))]}
             tickFormatter={(value: number) => `$${Math.round(value / 100).toLocaleString()}`}
           />
           <Tooltip
@@ -68,10 +65,7 @@ export function DayOfWeekChart({ data, metric = 'cents' }: DayOfWeekChartProps) 
             isAnimationActive={false}
           >
             {data.map((entry) => (
-              <Cell
-                key={entry.dayIndex}
-                fill={entry.isWeekend ? WEEKEND_COLOR : WEEKDAY_COLOR}
-              />
+              <Cell key={entry.dayIndex} fill={entry.isWeekend ? WEEKEND_COLOR : WEEKDAY_COLOR} />
             ))}
             <LabelList
               dataKey={metric}
@@ -119,7 +113,9 @@ function DayOfWeekTooltip({ active, payload }: DayOfWeekTooltipProps) {
         <span
           className="rounded px-1.5 py-0.5 text-[11px] font-medium"
           style={{
-            backgroundColor: day.isWeekend ? 'color-mix(in oklch, #eb6834 15%, transparent)' : 'color-mix(in oklch, #2a78d6 15%, transparent)',
+            backgroundColor: day.isWeekend
+              ? 'color-mix(in oklch, #eb6834 15%, transparent)'
+              : 'color-mix(in oklch, #2a78d6 15%, transparent)',
             color: day.isWeekend ? '#eb6834' : '#2a78d6',
           }}
         >
@@ -131,17 +127,14 @@ function DayOfWeekTooltip({ active, payload }: DayOfWeekTooltipProps) {
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Total spent</span>
           <span className="font-medium tabular-nums">
-            {formatAmount(day.cents)}{' '}
-            <span className="text-muted-foreground">({sharePct}%)</span>
+            {formatAmount(day.cents)} <span className="text-muted-foreground">({sharePct}%)</span>
           </span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Daily average</span>
           <span className="font-medium tabular-nums">
             {formatAmount(day.averageCents)}
-            {day.dayCount > 0 && (
-              <span className="text-muted-foreground font-normal"> / day</span>
-            )}
+            {day.dayCount > 0 && <span className="text-muted-foreground font-normal"> / day</span>}
           </span>
         </div>
         <div className="flex justify-between gap-4">

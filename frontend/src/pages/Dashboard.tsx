@@ -87,13 +87,16 @@ function loadInitialHistogramMetric(): 'count' | 'cents' {
   return 'count';
 }
 
+const EMPTY_TRANSACTIONS: Transaction[] = [];
+
 export function Dashboard() {
   const [preset, setPreset] = useState<RangeKey>('month');
   const [custom, setCustom] = useState<DateRange>({});
   const [categoryView, setCategoryView] = useState<'bar' | 'pie'>('bar');
   const [monthView, setMonthView] = useState<'total' | 'stacked'>('total');
-  const [histogramMetric, setHistogramMetric] =
-    useState<'count' | 'cents'>(loadInitialHistogramMetric);
+  const [histogramMetric, setHistogramMetric] = useState<'count' | 'cents'>(
+    loadInitialHistogramMetric,
+  );
   const [histogramThresholds, setHistogramThresholds] =
     useState<PurchaseSizeThresholds>(loadInitialThresholds);
   const [customizingHistogram, setCustomizingHistogram] = useState(false);
@@ -108,7 +111,7 @@ export function Dashboard() {
   const transactions = useTransactions(query);
   const categories = useCategories();
 
-  const rows = transactions.data ?? [];
+  const rows = transactions.data ?? EMPTY_TRANSACTIONS;
   const categoryTotals = byCategory(rows, categories.data ?? []);
   const largest = useMemo(() => largestPurchase(rows), [rows]);
   const isDaily = isDayGranularity(query, customActive ? undefined : preset);
@@ -260,10 +263,7 @@ export function Dashboard() {
                   {largest ? formatAmount(largest.amountCents) : '—'}
                 </p>
 
-                <p
-                  className="truncate text-sm text-muted-foreground"
-                  title={largest?.description}
-                >
+                <p className="truncate text-sm text-muted-foreground" title={largest?.description}>
                   {largest
                     ? largest.description.charAt(0).toUpperCase() + largest.description.slice(1)
                     : 'No purchases'}
@@ -392,14 +392,16 @@ export function Dashboard() {
                     <div className="flex justify-between text-xs">
                       <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
                         <span className="size-2 rounded-full bg-[#2a78d6]" />
-                        Weekday: <span className="font-semibold text-foreground">{dowWeekdayPct}%</span>{' '}
+                        Weekday:{' '}
+                        <span className="font-semibold text-foreground">{dowWeekdayPct}%</span>{' '}
                         <span className="text-muted-foreground/75">
                           ({formatAmount(dowBreakdown.weekdayCents)})
                         </span>
                       </span>
                       <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
                         <span className="size-2 rounded-full bg-[#eb6834]" />
-                        Weekend: <span className="font-semibold text-foreground">{dowWeekendPct}%</span>{' '}
+                        Weekend:{' '}
+                        <span className="font-semibold text-foreground">{dowWeekendPct}%</span>{' '}
                         <span className="text-muted-foreground/75">
                           ({formatAmount(dowBreakdown.weekendCents)})
                         </span>

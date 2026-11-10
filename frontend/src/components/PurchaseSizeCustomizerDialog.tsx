@@ -164,8 +164,8 @@ export function PurchaseSizeCustomizerDialog({
                   {formatThreshold(n2)}
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Medium:</span> {formatThreshold(n2)}–
-                  {formatThreshold(n3)}
+                  <span className="font-medium text-foreground">Medium:</span> {formatThreshold(n2)}
+                  –{formatThreshold(n3)}
                 </div>
                 <div>
                   <span className="font-medium text-foreground">Large:</span> {formatThreshold(n3)}–

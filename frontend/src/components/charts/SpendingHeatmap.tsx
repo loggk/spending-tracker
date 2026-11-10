@@ -101,9 +101,7 @@ export function SpendingHeatmap({ breakdown }: { breakdown: HeatmapBreakdown }) 
       {/* Selected Day Inspection Bar (for tap on mobile or desktop click) */}
       {selectedDay && (
         <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs">
-          <span className="font-medium text-foreground">
-            {formatHeatmapDate(selectedDay.date)}
-          </span>
+          <span className="font-medium text-foreground">{formatHeatmapDate(selectedDay.date)}</span>
           <span className="tabular-nums">
             {selectedDay.isNoSpend ? (
               <span className="text-muted-foreground">No spend · $0.00</span>
