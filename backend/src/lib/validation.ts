@@ -45,9 +45,22 @@ export const listTransactionsQuerySchema = z.object({
   categoryId: z.string().trim().min(1).max(64).optional(),
 });
 
+export const assistantChatSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().trim().min(1, 'Message content cannot be empty').max(4000),
+      }),
+    )
+    .min(1, 'At least one message is required')
+    .max(50, 'Conversation history is too long'),
+});
+
 export type TransactionInput = z.infer<typeof transactionInputSchema>;
 export type CategoryInput = z.infer<typeof categoryInputSchema>;
 export type ListTransactionsQuery = z.infer<typeof listTransactionsQuerySchema>;
+export type AssistantChatInput = z.infer<typeof assistantChatSchema>;
 
 export class ValidationError extends Error {
   readonly details: string[];

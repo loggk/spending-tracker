@@ -47,6 +47,28 @@ export interface ConfirmReceiptRequest {
   items: Array<ReceiptLineItem & { categoryId: string; date: string }>;
 }
 
+export interface AssistantChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AssistantCitedTransaction {
+  id: string;
+  date: string;
+  amountCents: number;
+  description: string;
+  categoryName?: string;
+}
+
+export interface AssistantChatRequest {
+  messages: AssistantChatMessage[];
+}
+
+export interface AssistantChatResponse {
+  reply: string;
+  citedTransactions?: AssistantCitedTransaction[];
+}
+
 export interface ApiError {
   message: string;
 }

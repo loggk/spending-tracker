@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ValidationError,
+  assistantChatSchema,
   categoryInputSchema,
   parseBody,
   parseInput,
@@ -84,5 +85,26 @@ describe('parseBody', () => {
       expect(error).toBeInstanceOf(ValidationError);
       expect((error as ValidationError).details.length).toBeGreaterThan(1);
     }
+  });
+});
+
+describe('assistantChatSchema', () => {
+  it('accepts valid chat history', () => {
+    const input = {
+      messages: [
+        { role: 'user', content: 'How much did I spend this weekend?' },
+        { role: 'assistant', content: 'You spent $45.00.' },
+        { role: 'user', content: 'On what?' },
+      ],
+    };
+    expect(parseInput(assistantChatSchema, input)).toEqual(input);
+  });
+
+  it.each([
+    ['empty messages array', { messages: [] }],
+    ['invalid role', { messages: [{ role: 'system', content: 'hello' }] }],
+    ['empty content', { messages: [{ role: 'user', content: '   ' }] }],
+  ])('rejects %s', (_label, input) => {
+    expect(() => parseInput(assistantChatSchema, input)).toThrow(ValidationError);
   });
 });

@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { signOut } from 'aws-amplify/auth';
+import { SparklesIcon } from 'lucide-react';
 import { useAuth } from '@/auth/auth-context';
+import { AssistantDrawer } from '@/components/AssistantDrawer';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -14,6 +17,7 @@ const links = [
 
 export function AppLayout() {
   const { user, refresh } = useAuth();
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   async function handleSignOut() {
     await signOut();
@@ -49,6 +53,19 @@ export function AppLayout() {
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         <Outlet />
       </main>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setAssistantOpen(true)}
+        className="fixed right-4 bottom-4 z-40 h-8 gap-1.5 rounded-full border bg-background/95 px-3 text-xs font-medium shadow-md backdrop-blur-xs transition hover:bg-muted hover:shadow-lg sm:right-6 sm:bottom-6"
+        title="Open Financial Assistant"
+      >
+        <SparklesIcon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span>Ask AI</span>
+      </Button>
+
+      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantOpen} />
     </div>
   );
 }
