@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { CategoryTotal, StackedMonthTotal } from '@/lib/analytics';
+import type { CategoryTotal, TrendPoint } from '@/lib/analytics';
 import { formatAmount } from '@/lib/format';
 import { SERIES_COLOR } from '@/lib/palette';
 import { WIDE_SCREEN, useMediaQuery } from '@/lib/use-media-query';
@@ -10,31 +10,35 @@ const BAR_SIZE = 24;
 
 const axisTick = { fill: 'var(--muted-foreground)', fontSize: 12 };
 
-interface MonthlyTrendChartProps {
-  data: StackedMonthTotal[];
+export interface SpendingTrendChartProps {
+  data: TrendPoint[];
   series: CategoryTotal[];
   stacked: boolean;
 }
 
 /**
- * Monthly totals, either as a single series or stacked by category. The single
- * view carries one hue and needs no legend. The stacked view names its series
- * in a legend below the chart.
+ * Spending totals over time (by day or by month), either as a single series
+ * or stacked by category. The single view carries one hue and needs no legend.
+ * The stacked view names its series in a legend below the chart.
  */
-export function MonthlyTrendChart({ data, series, stacked }: MonthlyTrendChartProps) {
+export function SpendingTrendChart({ data, series, stacked }: SpendingTrendChartProps) {
   const wide = useMediaQuery(WIDE_SCREEN);
 
   return (
     <div>
       <ResponsiveContainer width="100%" height={240}>
-        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
+        <BarChart
+          data={data}
+          maxBarSize={BAR_SIZE}
+          margin={{ top: 8, right: 8, bottom: 4, left: 8 }}
+        >
           <CartesianGrid vertical={false} stroke="var(--border)" strokeWidth={1} />
           <XAxis
             dataKey="label"
             tickLine={false}
             axisLine={false}
             tick={axisTick}
-            minTickGap={wide ? 5 : 16}
+            minTickGap={wide ? 8 : 16}
           />
           <YAxis
             tickLine={false}
@@ -52,12 +56,12 @@ export function MonthlyTrendChart({ data, series, stacked }: MonthlyTrendChartPr
               <Bar
                 key={entry.categoryId}
                 name={entry.name}
-                dataKey={(row: StackedMonthTotal) => row.totals[entry.categoryId] ?? 0}
-                stackId="month"
+                dataKey={(row: TrendPoint) => row.totals[entry.categoryId] ?? 0}
+                stackId="trend"
                 fill={entry.color}
                 stroke="var(--background)"
                 strokeWidth={1}
-                barSize={BAR_SIZE}
+                maxBarSize={BAR_SIZE}
                 isAnimationActive={false}
               />
             ))
@@ -65,7 +69,7 @@ export function MonthlyTrendChart({ data, series, stacked }: MonthlyTrendChartPr
             <Bar
               dataKey="cents"
               fill={SERIES_COLOR}
-              barSize={BAR_SIZE}
+              maxBarSize={BAR_SIZE}
               radius={[4, 4, 0, 0]}
               isAnimationActive={false}
             />
@@ -89,25 +93,25 @@ export function MonthlyTrendChart({ data, series, stacked }: MonthlyTrendChartPr
 interface StackedTooltipProps {
   series: CategoryTotal[];
   active?: boolean;
-  payload?: Array<{ payload: StackedMonthTotal }>;
+  payload?: Array<{ payload: TrendPoint }>;
 }
 
-/** Per-category rows for the hovered month, top of the stack first. */
+/** Per-category rows for the hovered time point, top of the stack first. */
 function StackedTooltip({ series, active, payload }: StackedTooltipProps) {
-  const month = payload?.[0]?.payload;
+  const point = payload?.[0]?.payload;
 
-  if (!active || !month) {
+  if (!active || !point) {
     return null;
   }
 
   const parts = [...series]
     .reverse()
-    .map((entry) => ({ ...entry, cents: month.totals[entry.categoryId] ?? 0 }))
+    .map((entry) => ({ ...entry, cents: point.totals[entry.categoryId] ?? 0 }))
     .filter((entry) => entry.cents !== 0);
 
   return (
     <div className="grid min-w-44 gap-1 rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
-      <p className="text-muted-foreground">{month.label}</p>
+      <p className="text-muted-foreground">{point.label}</p>
       {parts.map((entry) => (
         <p key={entry.categoryId} className="flex items-center gap-2">
           <span
@@ -120,7 +124,7 @@ function StackedTooltip({ series, active, payload }: StackedTooltipProps) {
         </p>
       ))}
       <p className="mt-0.5 flex justify-between gap-2 border-t pt-1 font-medium">
-        Total <span className="tabular-nums">{formatAmount(month.cents)}</span>
+        Total <span className="tabular-nums">{formatAmount(point.cents)}</span>
       </p>
     </div>
   );
