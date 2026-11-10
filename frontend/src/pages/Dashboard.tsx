@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
+import type { Transaction } from '@spending-tracker/shared';
 import {
+  ArrowUpRightIcon,
   ChartBarIcon,
   ChartColumnIcon,
   ChartColumnStackedIcon,
@@ -27,12 +29,15 @@ import {
   byMonthAndCategory,
   byPurchaseSize,
   isDayGranularity,
+  largestPurchase,
   resolveRange,
   totalCents,
   validateThresholds,
 } from '@/lib/analytics';
 import { formatAmount } from '@/lib/format';
 import { useCategories, useTransactions } from '@/lib/queries';
+import { cn } from '@/lib/utils';
+import { EditTransactionDialog } from './EditTransactionDialog';
 
 const RANGES: RangeKey[] = ['month', 'year', 'all'];
 
@@ -81,6 +86,7 @@ export function Dashboard() {
   const [histogramThresholds, setHistogramThresholds] =
     useState<PurchaseSizeThresholds>(loadInitialThresholds);
   const [customizingHistogram, setCustomizingHistogram] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   const customActive = Boolean(custom.from ?? custom.to);
   const query = useMemo(
@@ -93,6 +99,7 @@ export function Dashboard() {
 
   const rows = transactions.data ?? [];
   const categoryTotals = byCategory(rows, categories.data ?? []);
+  const largest = useMemo(() => largestPurchase(rows), [rows]);
   const isDaily = isDayGranularity(query, customActive ? undefined : preset);
 
   const daily = isDaily ? byDayAndCategory(rows, categories.data ?? [], query) : null;
@@ -176,7 +183,7 @@ export function Dashboard() {
 
       {transactions.isSuccess && rows.length > 0 && (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile label="Total spent" value={formatAmount(total)} />
             <StatTile
               label="Transactions"
@@ -192,6 +199,54 @@ export function Dashboard() {
               }
               swatch={topCategory?.color}
             />
+            <Card
+              className={cn(
+                'group relative flex flex-col justify-between transition-colors',
+                largest
+                  ? 'cursor-pointer hover:border-foreground/25 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+                  : '',
+              )}
+              role={largest ? 'button' : undefined}
+              tabIndex={largest ? 0 : undefined}
+              onClick={() => {
+                if (largest) {
+                  setSelectedTransaction(largest);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (largest && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault();
+                  setSelectedTransaction(largest);
+                }
+              }}
+              aria-label={
+                largest
+                  ? `Largest expense: ${formatAmount(largest.amountCents)}, ${largest.description}. Click to view details.`
+                  : undefined
+              }
+            >
+              <CardContent className="grid gap-1 py-5">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Largest expense</p>
+                  {largest && (
+                    <ArrowUpRightIcon className="size-3.5 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-foreground" />
+                  )}
+                </div>
+
+                <p className="flex items-center gap-2 text-2xl font-semibold tracking-tight tabular-nums">
+                  {largest ? formatAmount(largest.amountCents) : '—'}
+                </p>
+
+                <p
+                  className="truncate text-sm text-muted-foreground"
+                  title={largest?.description}
+                >
+                  {largest
+                    ? largest.description.charAt(0).toUpperCase() + largest.description.slice(1)
+                    : 'No purchases'}
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <Card>
@@ -292,6 +347,12 @@ export function Dashboard() {
         thresholds={histogramThresholds}
         onSave={handleHistogramThresholdsChange}
         onClose={() => setCustomizingHistogram(false)}
+      />
+
+      <EditTransactionDialog
+        transaction={selectedTransaction}
+        categories={categories.data ?? []}
+        onClose={() => setSelectedTransaction(null)}
       />
     </div>
   );

@@ -10,6 +10,7 @@ import {
   dayLabel,
   formatThreshold,
   isDayGranularity,
+  largestPurchase,
   resolveRange,
   totalCents,
   validateThresholds,
@@ -455,5 +456,36 @@ describe('byPurchaseSize', () => {
       '>$1,000',
     ]);
     expect(buckets.map((b) => b.count)).toEqual([1, 1, 1, 1, 1]);
+  });
+});
+
+describe('largestPurchase', () => {
+  it('returns null for an empty transaction list', () => {
+    expect(largestPurchase([])).toBeNull();
+  });
+
+  it('ignores refunds and zero-dollar transactions', () => {
+    expect(
+      largestPurchase([
+        transaction('2026-08-01', -500),
+        transaction('2026-08-02', 0),
+        transaction('2026-08-03', -10000),
+      ]),
+    ).toBeNull();
+  });
+
+  it('identifies the largest single purchase', () => {
+    const t1 = transaction('2026-08-01', 500);
+    const t2 = transaction('2026-08-02', 45000);
+    const t3 = transaction('2026-08-03', 1200);
+
+    expect(largestPurchase([t1, t2, t3])).toBe(t2);
+  });
+
+  it('breaks ties in amount by choosing the most recent date', () => {
+    const earlier = transaction('2026-08-01', 5000);
+    const later = transaction('2026-08-05', 5000);
+
+    expect(largestPurchase([earlier, later])).toBe(later);
   });
 });

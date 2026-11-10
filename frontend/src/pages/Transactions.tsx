@@ -1,5 +1,5 @@
 import { type FormEvent, useMemo, useState } from 'react';
-import type { Category, Transaction } from '@spending-tracker/shared';
+import type { Transaction } from '@spending-tracker/shared';
 import {
   ArrowDownIcon,
   ArrowUpDownIcon,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CategoryBadge } from '@/components/CategoryBadge';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { CategorySelect } from '@/components/CategorySelect';
 import { type DateRange, DateRangePicker } from '@/components/DateRangePicker';
@@ -511,23 +512,6 @@ function Field({
       </Label>
       {children}
     </div>
-  );
-}
-
-function CategoryBadge({ category }: { category: Category | undefined }) {
-  if (!category) {
-    return <span className="text-sm text-muted-foreground">Uncategorized</span>;
-  }
-
-  return (
-    <span className="flex min-w-0 items-center gap-2 text-sm">
-      <span
-        aria-hidden
-        className="size-2.5 shrink-0 rounded-full"
-        style={{ backgroundColor: category.color }}
-      />
-      <span className="truncate">{category.name}</span>
-    </span>
   );
 }
 

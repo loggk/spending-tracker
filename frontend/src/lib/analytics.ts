@@ -505,3 +505,28 @@ export function byPurchaseSize(
 
   return buckets;
 }
+
+/**
+ * Finds the single purchase transaction (amountCents > 0) with the largest amount.
+ * If multiple purchases tie for the largest amount, the most recent one is chosen.
+ * Returns null if there are no purchase transactions.
+ */
+export function largestPurchase(transactions: Transaction[]): Transaction | null {
+  let largest: Transaction | null = null;
+
+  for (const transaction of transactions) {
+    if (transaction.amountCents <= 0) {
+      continue;
+    }
+
+    if (
+      !largest ||
+      transaction.amountCents > largest.amountCents ||
+      (transaction.amountCents === largest.amountCents && transaction.date > largest.date)
+    ) {
+      largest = transaction;
+    }
+  }
+
+  return largest;
+}
