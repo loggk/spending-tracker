@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChartBarIcon, ChartColumnIcon, ChartColumnStackedIcon, ChartPieIcon } from 'lucide-react';
 import { CategoryBarChart } from '@/components/charts/CategoryBarChart';
 import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
-import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
+import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
 import { type DateRange, DateRangePicker } from '@/components/DateRangePicker';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,9 @@ import {
   type RangeKey,
   RANGE_LABELS,
   byCategory,
+  byDayAndCategory,
   byMonthAndCategory,
+  isDayGranularity,
   resolveRange,
   totalCents,
 } from '@/lib/analytics';
@@ -37,7 +39,16 @@ export function Dashboard() {
 
   const rows = transactions.data ?? [];
   const categoryTotals = byCategory(rows, categories.data ?? []);
-  const monthly = byMonthAndCategory(rows, categories.data ?? [], query);
+  const isDaily = isDayGranularity(query, customActive ? undefined : preset);
+
+  const daily = isDaily ? byDayAndCategory(rows, categories.data ?? [], query) : null;
+  const monthly = !isDaily ? byMonthAndCategory(rows, categories.data ?? [], query) : null;
+
+  const trendPoints = daily ? daily.days : (monthly?.months ?? []);
+  const trendSeries = daily ? daily.series : (monthly?.series ?? []);
+  const hasTrend = daily ? daily.days.length > 0 : (monthly?.months.length ?? 0) > 1;
+  const trendTitle = isDaily ? 'Spending by day' : 'Spending by month';
+  const trendTotalLabel = isDaily ? 'Daily totals' : 'Monthly totals';
 
   const total = totalCents(rows);
   const average = rows.length === 0 ? 0 : Math.round(total / rows.length);
@@ -130,13 +141,13 @@ export function Dashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base font-medium">Spending by month</CardTitle>
+              <CardTitle className="text-base font-medium">{trendTitle}</CardTitle>
               <CardAction>
                 <ChartViewToggle
                   value={monthView}
                   onChange={setMonthView}
                   options={[
-                    { value: 'total', label: 'Monthly totals', icon: <ChartColumnIcon /> },
+                    { value: 'total', label: trendTotalLabel, icon: <ChartColumnIcon /> },
                     {
                       value: 'stacked',
                       label: 'Stacked by category',
@@ -147,10 +158,10 @@ export function Dashboard() {
               </CardAction>
             </CardHeader>
             <CardContent>
-              {monthly.months.length > 1 ? (
-                <MonthlyTrendChart
-                  data={monthly.months}
-                  series={monthly.series}
+              {hasTrend ? (
+                <SpendingTrendChart
+                  data={trendPoints}
+                  series={trendSeries}
                   stacked={monthView === 'stacked'}
                 />
               ) : (

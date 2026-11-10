@@ -71,6 +71,12 @@ export function byCategory(transactions: Transaction[], categories: Category[]):
     .sort((a, b) => b.cents - a.cents);
 }
 
+export interface TrendPoint {
+  label: string;
+  cents: number;
+  totals: Record<string, number>;
+}
+
 export interface MonthTotal {
   /** `YYYY-MM`. */
   month: string;
@@ -182,4 +188,144 @@ export function byMonthAndCategory(
     })),
     series: byCategory(transactions, categories),
   };
+}
+
+export interface DayTotal {
+  /** `YYYY-MM-DD`. */
+  date: string;
+  label: string;
+  cents: number;
+}
+
+export const dayLabel = (date: string): string => {
+  const [year, index, day] = date.split('-').map(Number);
+  if (!year || !index || !day) {
+    return date;
+  }
+  return new Date(Date.UTC(year, index - 1, day)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+};
+
+export interface DayRange {
+  from?: string;
+  to?: string;
+}
+
+/**
+ * Spend per calendar day, oldest first. Days with no spending are included as
+ * zero so gaps read as gaps instead of collapsing the time axis.
+ */
+export function byDay(transactions: Transaction[], range: DayRange = {}): DayTotal[] {
+  if (transactions.length === 0) {
+    return [];
+  }
+
+  const totals = new Map<string, number>();
+  for (const transaction of transactions) {
+    const day = transaction.date.slice(0, 10);
+    totals.set(day, (totals.get(day) ?? 0) + transaction.amountCents);
+  }
+
+  const days = [...totals.keys()].sort();
+  let first = days[0];
+  let last = days[days.length - 1];
+  if (!first || !last) {
+    return [];
+  }
+
+  const fromDay = range.from?.slice(0, 10);
+  const toDay = range.to?.slice(0, 10);
+  if (fromDay && fromDay < first) {
+    first = fromDay;
+  }
+  if (toDay && toDay > last) {
+    last = toDay;
+  }
+
+  const [startYear, startMonth, startDay] = first.split('-').map(Number);
+  const [endYear, endMonth, endDay] = last.split('-').map(Number);
+  if (!startYear || !startMonth || !startDay || !endYear || !endMonth || !endDay) {
+    return [];
+  }
+
+  const filled: DayTotal[] = [];
+  const cursor = new Date(Date.UTC(startYear, startMonth - 1, startDay));
+  const end = new Date(Date.UTC(endYear, endMonth - 1, endDay));
+
+  while (cursor <= end) {
+    const date = cursor.toISOString().slice(0, 10);
+    filled.push({ date, label: dayLabel(date), cents: totals.get(date) ?? 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return filled;
+}
+
+export interface StackedDayTotal extends DayTotal {
+  totals: Record<string, number>;
+}
+
+export interface DayCategoryBreakdown {
+  days: StackedDayTotal[];
+  series: CategoryTotal[];
+}
+
+/**
+ * Spend per day broken down by category, for the stacked view of the daily
+ * chart. Reuses {@link byDay} for the day spine so gaps stay visible, and
+ * {@link byCategory} for a series order that is fixed across the whole range.
+ */
+export function byDayAndCategory(
+  transactions: Transaction[],
+  categories: Category[],
+  range: DayRange = {},
+): DayCategoryBreakdown {
+  const known = new Set(categories.map((category) => category.id));
+  const perDay = new Map<string, Record<string, number>>();
+
+  for (const transaction of transactions) {
+    const day = transaction.date.slice(0, 10);
+    const key = known.has(transaction.categoryId) ? transaction.categoryId : '';
+    const bucket = perDay.get(day) ?? {};
+    bucket[key] = (bucket[key] ?? 0) + transaction.amountCents;
+    perDay.set(day, bucket);
+  }
+
+  return {
+    days: byDay(transactions, range).map((entry) => ({
+      ...entry,
+      totals: perDay.get(entry.date) ?? {},
+    })),
+    series: byCategory(transactions, categories),
+  };
+}
+
+/**
+ * Decides whether the time series should display daily or monthly granularity.
+ * Ranges shorter than 90 days (e.g. "This month" or short custom spans) show daily;
+ * larger spans ("This year", "All time", or >= 90 days) show monthly.
+ */
+export function isDayGranularity(
+  range: { from?: string; to?: string },
+  preset?: RangeKey,
+): boolean {
+  if (preset === 'month') {
+    return true;
+  }
+  if (preset === 'year' || preset === 'all') {
+    return false;
+  }
+  if (!range.from || !range.to) {
+    return false;
+  }
+  const fromMs = Date.parse(`${range.from}T00:00:00Z`);
+  const toMs = Date.parse(`${range.to}T00:00:00Z`);
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) {
+    return false;
+  }
+  const days = Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24)) + 1;
+  return days > 0 && days < 90;
 }
