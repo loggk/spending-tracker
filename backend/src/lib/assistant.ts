@@ -17,7 +17,8 @@ import { listTransactions } from '../repositories/transactions';
 
 const defaultClient = new BedrockRuntimeClient({});
 
-const modelId = (): string => process.env['BEDROCK_MODEL_ID'] ?? 'us.anthropic.claude-sonnet-4-6';
+const modelId = (): string =>
+  process.env['BEDROCK_MODEL_ID'] ?? 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
 
 export interface AssistantDependencies {
   bedrockClient?: { send: BedrockRuntimeClient['send'] };
