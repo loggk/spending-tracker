@@ -8,7 +8,7 @@ const client = new BedrockRuntimeClient({});
  * error. Set through the environment so the model can change without a code edit.
  */
 const modelId = (): string =>
-  process.env['BEDROCK_MODEL_ID'] ?? 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
+  process.env['BEDROCK_MODEL_ID'] ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 export interface ReceiptLine {
   description: string;
