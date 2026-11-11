@@ -19,7 +19,7 @@ import { Monitoring } from './monitoring';
  * Inference profile rather than a bare model id — Bedrock rejects bare ids for
  * current Claude models. Verified available in us-east-1.
  */
-const BEDROCK_MODEL_ID = 'us.anthropic.claude-sonnet-4-6';
+const BEDROCK_MODEL_ID = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
 
 /**
  * Named rather than `$default` so the stage prefix API Gateway expects is the
@@ -133,7 +133,8 @@ export class ApiStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ['bedrock:InvokeModel'],
         resources: [
-          `arn:aws:bedrock:*:${this.account}:inference-profile/${BEDROCK_MODEL_ID}`,
+          `arn:aws:bedrock:*::inference-profile/${BEDROCK_MODEL_ID}`,
+          `arn:aws:bedrock:*:${this.account}:inference-profile/*`,
           'arn:aws:bedrock:*::foundation-model/anthropic.*',
         ],
       }),
@@ -220,7 +221,8 @@ export class ApiStack extends cdk.Stack {
         // Cross-region inference fans out to regional copies of the model, so the
         // grant covers the profile and the underlying foundation models.
         resources: [
-          `arn:aws:bedrock:*:${this.account}:inference-profile/${BEDROCK_MODEL_ID}`,
+          `arn:aws:bedrock:*::inference-profile/${BEDROCK_MODEL_ID}`,
+          `arn:aws:bedrock:*:${this.account}:inference-profile/*`,
           'arn:aws:bedrock:*::foundation-model/anthropic.*',
         ],
       }),
