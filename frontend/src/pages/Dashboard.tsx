@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import type { Transaction } from '@spending-tracker/shared';
+import type { Category, Transaction } from '@spending-tracker/shared';
 import {
   ArrowUpRightIcon,
+  CalendarIcon,
   ChartBarIcon,
   ChartColumnIcon,
   ChartColumnStackedIcon,
@@ -10,96 +11,92 @@ import {
   HashIcon,
   SlidersHorizontalIcon,
 } from 'lucide-react';
-import { CategoryBarChart } from '@/components/charts/CategoryBarChart';
-import { CategoryPieChart } from '@/components/charts/CategoryPieChart';
+import { CategoryBreakdown, type CategoryView } from '@/components/charts/CategoryBreakdown';
 import { DayOfWeekChart } from '@/components/charts/DayOfWeekChart';
 import { PurchaseSizeHistogram } from '@/components/charts/PurchaseSizeHistogram';
 import { SpendingHeatmap } from '@/components/charts/SpendingHeatmap';
 import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
-import { DateRangePicker, type DateRange } from '@/components/DateRangePicker';
+import { DateRangeFields, type DateRange } from '@/components/DateRangePicker';
+import { EmptyState } from '@/components/EmptyState';
+import { IconButton } from '@/components/IconButton';
+import { PageHeader } from '@/components/PageHeader';
 import { PurchaseSizeCustomizerDialog } from '@/components/PurchaseSizeCustomizerDialog';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { SegmentedControl, type SegmentOption } from '@/components/SegmentedControl';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   DEFAULT_PURCHASE_SIZE_THRESHOLDS,
   type PurchaseSizeThresholds,
   type RangeKey,
-  RANGE_LABELS,
   byCategory,
   byDayAndCategory,
   byDayOfWeek,
   byHeatmap,
   byMonthAndCategory,
   byPurchaseSize,
+  dayTrendPoints,
   isDayGranularity,
   largestPurchase,
+  monthTrendPoints,
   resolveRange,
   totalCents,
   validateThresholds,
 } from '@/lib/analytics';
 import { formatAmount } from '@/lib/format';
+import { describePeriod } from '@/lib/period';
+import { WEEKDAY_COLOR, WEEKEND_COLOR } from '@/lib/palette';
 import { useCategories, useTransactions } from '@/lib/queries';
+import { useStoredState } from '@/lib/use-stored-state';
 import { cn } from '@/lib/utils';
 import { EditTransactionDialog } from './EditTransactionDialog';
 
-const RANGES: RangeKey[] = ['month', 'year', 'all'];
+type RangeOption = RangeKey | 'custom';
+type TrendView = 'total' | 'stacked';
+type SizeMetric = 'count' | 'cents';
 
-const STORAGE_KEY_HISTOGRAM_THRESHOLDS = 'spending-tracker:purchase-size-thresholds';
-const STORAGE_KEY_HISTOGRAM_METRIC = 'spending-tracker:purchase-size-metric';
+const RANGE_OPTIONS: SegmentOption<RangeOption>[] = [
+  { value: 'month', label: 'This month' },
+  { value: 'year', label: 'This year' },
+  { value: 'all', label: 'All time' },
+  { value: 'custom', label: 'Custom', icon: <CalendarIcon className="size-3.5" /> },
+];
 
-function loadInitialThresholds(): PurchaseSizeThresholds {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_HISTOGRAM_THRESHOLDS);
-    if (raw) {
-      const validated = validateThresholds(JSON.parse(raw));
-      if (validated) {
-        return validated;
-      }
-    }
-  } catch {
-    // Ignore storage errors
-  }
-  return [
-    DEFAULT_PURCHASE_SIZE_THRESHOLDS[0],
-    DEFAULT_PURCHASE_SIZE_THRESHOLDS[1],
-    DEFAULT_PURCHASE_SIZE_THRESHOLDS[2],
-    DEFAULT_PURCHASE_SIZE_THRESHOLDS[3],
-  ];
-}
+const CATEGORY_VIEWS: SegmentOption<CategoryView>[] = [
+  { value: 'bar', label: 'Bar chart', icon: <ChartBarIcon /> },
+  { value: 'pie', label: 'Pie chart', icon: <ChartPieIcon /> },
+];
 
-function loadInitialHistogramMetric(): 'count' | 'cents' {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_HISTOGRAM_METRIC);
-    if (raw === 'count' || raw === 'cents') {
-      return raw;
-    }
-  } catch {
-    // Ignore storage errors
-  }
-  return 'count';
-}
+const SIZE_METRICS: SegmentOption<SizeMetric>[] = [
+  { value: 'count', label: 'Transaction count', icon: <HashIcon /> },
+  { value: 'cents', label: 'Total dollars', icon: <DollarSignIcon /> },
+];
 
+const DEFAULT_THRESHOLDS: PurchaseSizeThresholds = [...DEFAULT_PURCHASE_SIZE_THRESHOLDS];
+
+const STORAGE_KEY_THRESHOLDS = 'spending-tracker:purchase-size-thresholds';
+const STORAGE_KEY_SIZE_METRIC = 'spending-tracker:purchase-size-metric';
+
+/** Stable empty fallbacks, so memoized views do not recompute on every render. */
 const EMPTY_TRANSACTIONS: Transaction[] = [];
+const EMPTY_CATEGORIES: Category[] = [];
 
 export function Dashboard() {
   const [preset, setPreset] = useState<RangeKey>('month');
   const [custom, setCustom] = useState<DateRange>({});
-  const [categoryView, setCategoryView] = useState<'bar' | 'pie'>('bar');
-  const [monthView, setMonthView] = useState<'total' | 'stacked'>('total');
-  const [histogramMetric, setHistogramMetric] = useState<'count' | 'cents'>(
-    loadInitialHistogramMetric,
+  const [pickingRange, setPickingRange] = useState(false);
+  const [categoryView, setCategoryView] = useState<CategoryView>('bar');
+  const [trendView, setTrendView] = useState<TrendView>('total');
+  const [sizeMetric, setSizeMetric] = useStoredState<SizeMetric>(
+    STORAGE_KEY_SIZE_METRIC,
+    'count',
+    (raw) => (raw === 'count' || raw === 'cents' ? raw : null),
   );
-  const [histogramThresholds, setHistogramThresholds] =
-    useState<PurchaseSizeThresholds>(loadInitialThresholds);
-  const [customizingHistogram, setCustomizingHistogram] = useState(false);
+  const [thresholds, setThresholds] = useStoredState<PurchaseSizeThresholds>(
+    STORAGE_KEY_THRESHOLDS,
+    DEFAULT_THRESHOLDS,
+    validateThresholds,
+  );
+  const [customizingSizes, setCustomizingSizes] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   const customActive = Boolean(custom.from ?? custom.to);
@@ -112,417 +109,297 @@ export function Dashboard() {
   const categories = useCategories();
 
   const rows = transactions.data ?? EMPTY_TRANSACTIONS;
-  const categoryTotals = byCategory(rows, categories.data ?? []);
-  const largest = useMemo(() => largestPurchase(rows), [rows]);
-  const isDaily = isDayGranularity(query, customActive ? undefined : preset);
+  const categoryList = categories.data ?? EMPTY_CATEGORIES;
 
-  const daily = isDaily ? byDayAndCategory(rows, categories.data ?? [], query) : null;
-  const monthly = !isDaily ? byMonthAndCategory(rows, categories.data ?? [], query) : null;
-
-  const trendPoints = daily ? daily.days : (monthly?.months ?? []);
-  const trendSeries = daily ? daily.series : (monthly?.series ?? []);
-  const hasTrend = daily ? daily.days.length > 0 : (monthly?.months.length ?? 0) > 1;
-  const trendTitle = isDaily ? 'Spending by day' : 'Spending by month';
-  const trendTotalLabel = isDaily ? 'Daily totals' : 'Monthly totals';
-
-  const histogramData = useMemo(
-    () => byPurchaseSize(rows, histogramThresholds),
-    [rows, histogramThresholds],
+  const firstDate = useMemo(
+    () => rows.reduce<string | undefined>((min, row) => (!min || row.date < min ? row.date : min), undefined),
+    [rows],
   );
-  const hasPurchases = rows.some((row) => row.amountCents > 0);
+  const period = describePeriod(preset, custom, firstDate);
 
-  const heatmapBreakdown = useMemo(() => byHeatmap(rows, query), [rows, query]);
-
-  const dowBreakdown = useMemo(() => byDayOfWeek(rows, query), [rows, query]);
-  const dowWeekdayPct = Math.round(dowBreakdown.weekdayShare * 100);
-  const dowWeekendPct = 100 - dowWeekdayPct;
-  const dowPeakDay = dowBreakdown.peakDay;
-  const dowPeakAvg = dowPeakDay
-    ? dowPeakDay.averageCents > 0 && dowPeakDay.averageCents < 100
-      ? formatAmount(dowPeakDay.averageCents)
-      : `$${Math.round(dowPeakDay.averageCents / 100).toLocaleString()}`
-    : null;
-
-  function handleHistogramMetricChange(next: 'count' | 'cents') {
-    setHistogramMetric(next);
-    try {
-      localStorage.setItem(STORAGE_KEY_HISTOGRAM_METRIC, next);
-    } catch {
-      // Ignore storage errors
-    }
-  }
-
-  function handleHistogramThresholdsChange(next: PurchaseSizeThresholds) {
-    setHistogramThresholds(next);
-    try {
-      localStorage.setItem(STORAGE_KEY_HISTOGRAM_THRESHOLDS, JSON.stringify(next));
-    } catch {
-      // Ignore storage errors
-    }
-  }
-
+  const categoryTotals = byCategory(rows, categoryList);
+  const largest = useMemo(() => largestPurchase(rows), [rows]);
   const total = totalCents(rows);
   const average = rows.length === 0 ? 0 : Math.round(total / rows.length);
   const topCategory = categoryTotals[0];
 
+  // The trend spans the whole period, so the rest of it reads as empty, not absent.
+  const daily = isDayGranularity(query, customActive ? undefined : preset);
+  const trend = useMemo(
+    () =>
+      daily
+        ? dayTrendPoints(byDayAndCategory(rows, categoryList, period.display))
+        : monthTrendPoints(byMonthAndCategory(rows, categoryList, period.display)),
+    [daily, rows, categoryList, period.display],
+  );
+
+  const sizes = useMemo(() => byPurchaseSize(rows, thresholds), [rows, thresholds]);
+  // Like the trend, the calendar covers the whole period, not just up to today.
+  const heatmap = useMemo(() => byHeatmap(rows, period.display), [rows, period.display]);
+  const dow = useMemo(() => byDayOfWeek(rows, query), [rows, query]);
+  const weekdayPct = Math.round(dow.weekdayShare * 100);
+
   return (
-    <div className="grid gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <div
-          className="flex w-full flex-wrap items-center gap-2 sm:w-auto"
-          role="group"
-          aria-label="Time range"
-        >
-          {RANGES.map((key) => (
-            <Button
-              key={key}
-              size="sm"
-              variant={!customActive && preset === key ? 'secondary' : 'outline'}
-              aria-pressed={!customActive && preset === key}
-              onClick={() => {
-                setPreset(key);
+    <>
+      <PageHeader
+        eyebrow={period.eyebrow}
+        title={period.title}
+        actions={
+          <SegmentedControl
+            label="Time range"
+            options={RANGE_OPTIONS}
+            value={customActive ? 'custom' : preset}
+            onChange={(value) => {
+              if (value !== 'custom') {
+                setPreset(value);
                 setCustom({});
-              }}
-            >
-              {RANGE_LABELS[key]}
-            </Button>
-          ))}
-          <DateRangePicker
-            value={custom}
-            onChange={setCustom}
-            placeholder="Custom"
-            active={customActive}
+              }
+            }}
+            renderItem={(option, { className }) =>
+              option.value === 'custom' ? (
+                <Popover key="custom" open={pickingRange} onOpenChange={setPickingRange}>
+                  <PopoverTrigger
+                    render={
+                      <button type="button" className={className}>
+                        {option.icon}
+                        {option.label}
+                      </button>
+                    }
+                  />
+                  <PopoverContent align="end" className="w-auto">
+                    <DateRangeFields
+                      value={custom}
+                      onChange={setCustom}
+                      onDone={() => setPickingRange(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : undefined
+            }
           />
-        </div>
-      </div>
+        }
+      />
 
       {transactions.isError && (
-        <Placeholder>Could not load spending: {transactions.error.message}</Placeholder>
+        <EmptyState>Could not load spending: {transactions.error.message}</EmptyState>
       )}
-
-      {transactions.isPending && <Placeholder>Loading…</Placeholder>}
-
+      {transactions.isPending && <EmptyState>Loading…</EmptyState>}
       {transactions.isSuccess && rows.length === 0 && (
-        <Placeholder>No spending recorded in this period.</Placeholder>
+        <EmptyState>No spending recorded in this period.</EmptyState>
       )}
 
       {transactions.isSuccess && rows.length > 0 && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatTile label="Total spent" value={formatAmount(total)} />
-            <StatTile
-              label="Transactions"
-              value={String(rows.length)}
-              detail={`${formatAmount(average)} average`}
-            />
-            <StatTile
-              label="Top category"
-              value={topCategory?.name ?? '—'}
-              detail={
-                topCategory &&
-                `${formatAmount(topCategory.cents)} · ${Math.round(topCategory.share * 100)}%`
-              }
-              swatch={topCategory?.color}
-            />
-            <Card
-              className={cn(
-                'group relative flex flex-col justify-between transition-colors',
-                largest
-                  ? 'cursor-pointer hover:border-foreground/25 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
-                  : '',
-              )}
-              role={largest ? 'button' : undefined}
-              tabIndex={largest ? 0 : undefined}
-              onClick={() => {
-                if (largest) {
-                  setSelectedTransaction(largest);
-                }
-              }}
-              onKeyDown={(event) => {
-                if (largest && (event.key === 'Enter' || event.key === ' ')) {
-                  event.preventDefault();
-                  setSelectedTransaction(largest);
-                }
-              }}
-              aria-label={
-                largest
-                  ? `Largest expense: ${formatAmount(largest.amountCents)}, ${largest.description}. Click to view details.`
-                  : undefined
-              }
+          <Card className="grid grid-cols-1 gap-0 py-0 md:grid-cols-[1.5fr_1fr_1fr]">
+            <SummaryCell label="Total spent">
+              <p className="text-[44px] leading-none font-semibold tracking-[-0.04em] tabular-nums">
+                {formatAmount(total)}
+              </p>
+              <p className="mt-2.5 text-[13px] text-muted-foreground tabular-nums">
+                {rows.length.toLocaleString()} {rows.length === 1 ? 'transaction' : 'transactions'}{' '}
+                · {formatAmount(average)} average
+              </p>
+            </SummaryCell>
+
+            <SummaryCell className={CELL_DIVIDER} label="Top category">
+              <p className="flex items-center gap-2 text-xl font-semibold tracking-[-0.02em]">
+                {topCategory && (
+                  <span
+                    aria-hidden
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: topCategory.color }}
+                  />
+                )}
+                <span className="truncate">{topCategory?.name ?? '—'}</span>
+              </p>
+              <p className="mt-2.5 text-[13px] text-muted-foreground tabular-nums">
+                {topCategory
+                  ? `${formatAmount(topCategory.cents)} · ${Math.round(topCategory.share * 100)}%`
+                  : 'No spending yet'}
+              </p>
+            </SummaryCell>
+
+            <SummaryCell
+              className={CELL_DIVIDER}
+              label="Largest expense"
+              onOpen={largest ? () => setSelectedTransaction(largest) : undefined}
             >
-              <CardContent className="grid gap-1 py-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">Largest expense</p>
-                  {largest && (
-                    <ArrowUpRightIcon className="size-3.5 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-foreground" />
+              <p className="text-xl font-semibold tracking-[-0.02em] tabular-nums">
+                {largest ? formatAmount(largest.amountCents) : '—'}
+              </p>
+              <p className="mt-2.5 truncate text-[13px] text-muted-foreground">
+                {largest?.description ?? 'No purchases'}
+              </p>
+            </SummaryCell>
+          </Card>
+
+          <div className="flex flex-wrap gap-5">
+            <Card className="flex-[1_1_320px]">
+              <CardHeader>
+                <CardTitle>By category</CardTitle>
+                <CardAction>
+                  <SegmentedControl
+                    size="sm"
+                    label="Category chart"
+                    options={CATEGORY_VIEWS}
+                    value={categoryView}
+                    onChange={setCategoryView}
+                  />
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <CategoryBreakdown data={categoryTotals} view={categoryView} />
+              </CardContent>
+            </Card>
+
+            <Card className="flex-[1.4_1_420px]">
+              <CardHeader>
+                <CardTitle>{daily ? 'By day' : 'By month'}</CardTitle>
+                <CardAction>
+                  <SegmentedControl
+                    size="sm"
+                    label="Trend chart"
+                    options={[
+                      { value: 'total', label: 'Totals', icon: <ChartColumnIcon /> },
+                      {
+                        value: 'stacked',
+                        label: 'Stacked by category',
+                        icon: <ChartColumnStackedIcon />,
+                      },
+                    ]}
+                    value={trendView}
+                    onChange={setTrendView}
+                  />
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <SpendingTrendChart
+                  points={trend}
+                  series={categoryTotals}
+                  stacked={trendView === 'stacked'}
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex flex-wrap gap-5">
+            <Card className="flex-[1_1_380px]">
+              <CardHeader>
+                <CardTitle>Purchase size</CardTitle>
+                <CardAction>
+                  <div className="flex items-center gap-1.5">
+                    <SegmentedControl
+                      size="sm"
+                      label="Purchase size measure"
+                      options={SIZE_METRICS}
+                      value={sizeMetric}
+                      onChange={setSizeMetric}
+                    />
+                    <IconButton
+                      label="Customize purchase brackets"
+                      onClick={() => setCustomizingSizes(true)}
+                    >
+                      <SlidersHorizontalIcon />
+                    </IconButton>
+                  </div>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <PurchaseSizeHistogram data={sizes} metric={sizeMetric} />
+              </CardContent>
+            </Card>
+
+            <Card className="flex-[1_1_380px]">
+              <CardHeader>
+                <CardTitle>Day of week</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-4 flex flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground">
+                  <Swatch color={WEEKDAY_COLOR} /> Weekday {weekdayPct}%
+                  <Swatch color={WEEKEND_COLOR} className="ml-1.5" /> Weekend {100 - weekdayPct}%
+                  {dow.peakDay && dow.totalCents > 0 && (
+                    <>
+                      <span aria-hidden className="mx-1">
+                        ·
+                      </span>
+                      <span>
+                        Peak{' '}
+                        <strong className="font-semibold text-foreground">
+                          {dow.peakDay.fullName}
+                        </strong>
+                        , avg {formatAmount(dow.peakDay.averageCents)}
+                      </span>
+                    </>
                   )}
-                </div>
-
-                <p className="flex items-center gap-2 text-2xl font-semibold tracking-tight tabular-nums">
-                  {largest ? formatAmount(largest.amountCents) : '—'}
                 </p>
-
-                <p className="truncate text-sm text-muted-foreground" title={largest?.description}>
-                  {largest
-                    ? largest.description.charAt(0).toUpperCase() + largest.description.slice(1)
-                    : 'No purchases'}
-                </p>
+                <DayOfWeekChart data={dow.days} />
               </CardContent>
             </Card>
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Spending by category</CardTitle>
-              <CardAction>
-                <ChartViewToggle
-                  value={categoryView}
-                  onChange={setCategoryView}
-                  options={[
-                    { value: 'bar', label: 'Bar chart', icon: <ChartBarIcon /> },
-                    { value: 'pie', label: 'Pie chart', icon: <ChartPieIcon /> },
-                  ]}
-                />
-              </CardAction>
-            </CardHeader>
             <CardContent>
-              {categoryView === 'bar' ? (
-                <CategoryBarChart data={categoryTotals} />
-              ) : (
-                <CategoryPieChart data={categoryTotals} />
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">{trendTitle}</CardTitle>
-              <CardAction>
-                <ChartViewToggle
-                  value={monthView}
-                  onChange={setMonthView}
-                  options={[
-                    { value: 'total', label: trendTotalLabel, icon: <ChartColumnIcon /> },
-                    {
-                      value: 'stacked',
-                      label: 'Stacked by category',
-                      icon: <ChartColumnStackedIcon />,
-                    },
-                  ]}
-                />
-              </CardAction>
-            </CardHeader>
-            <CardContent>
-              {hasTrend ? (
-                <SpendingTrendChart
-                  data={trendPoints}
-                  series={trendSeries}
-                  stacked={monthView === 'stacked'}
-                />
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  A month-by-month trend appears once you have spending in more than one month.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Purchase size distribution</CardTitle>
-              <CardAction>
-                <div className="flex items-center gap-1.5">
-                  <ChartViewToggle
-                    value={histogramMetric}
-                    onChange={handleHistogramMetricChange}
-                    options={[
-                      { value: 'count', label: 'Transaction count', icon: <HashIcon /> },
-                      { value: 'cents', label: 'Total dollars', icon: <DollarSignIcon /> },
-                    ]}
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label="Customize purchase brackets"
-                    onClick={() => setCustomizingHistogram(true)}
-                  >
-                    <SlidersHorizontalIcon />
-                  </Button>
-                </div>
-              </CardAction>
-            </CardHeader>
-            <CardContent>
-              {hasPurchases ? (
-                <PurchaseSizeHistogram data={histogramData} metric={histogramMetric} />
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  No purchases recorded in this period.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Day-of-week patterns</CardTitle>
-              {dowBreakdown.totalCents > 0 && (
-                <CardDescription className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:text-sm">
-                  <span className="font-medium text-foreground">
-                    {dowWeekendPct}% Weekend / {dowWeekdayPct}% Weekday
-                  </span>
-                  {dowPeakDay && (
-                    <>
-                      <span className="text-muted-foreground/60">·</span>
-                      <span>
-                        <strong className="font-medium text-foreground">
-                          {dowPeakDay.fullName}
-                        </strong>{' '}
-                        is your highest spending day (avg {dowPeakAvg})
-                      </span>
-                    </>
-                  )}
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {dowBreakdown.totalCents > 0 ? (
-                <>
-                  <div className="space-y-1.5 rounded-lg border bg-muted/20 p-3">
-                    <div className="flex justify-between text-xs">
-                      <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                        <span className="size-2 rounded-full bg-[#2a78d6]" />
-                        Weekday:{' '}
-                        <span className="font-semibold text-foreground">{dowWeekdayPct}%</span>{' '}
-                        <span className="text-muted-foreground/75">
-                          ({formatAmount(dowBreakdown.weekdayCents)})
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                        <span className="size-2 rounded-full bg-[#eb6834]" />
-                        Weekend:{' '}
-                        <span className="font-semibold text-foreground">{dowWeekendPct}%</span>{' '}
-                        <span className="text-muted-foreground/75">
-                          ({formatAmount(dowBreakdown.weekendCents)})
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="bg-[#2a78d6] transition-all"
-                        style={{ width: `${dowWeekdayPct}%` }}
-                        title={`Weekday: ${dowWeekdayPct}%`}
-                      />
-                      <div
-                        className="bg-[#eb6834] transition-all"
-                        style={{ width: `${dowWeekendPct}%` }}
-                        title={`Weekend: ${dowWeekendPct}%`}
-                      />
-                    </div>
-                  </div>
-
-                  <DayOfWeekChart data={dowBreakdown.days} />
-                </>
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  No purchases recorded in this period.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Daily spending heatmap</CardTitle>
-              <CardDescription>
-                Calendar view of daily spend intensity and zero-spend discipline streaks.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SpendingHeatmap breakdown={heatmapBreakdown} />
+              <SpendingHeatmap breakdown={heatmap} />
             </CardContent>
           </Card>
         </>
       )}
 
       <PurchaseSizeCustomizerDialog
-        open={customizingHistogram}
-        thresholds={histogramThresholds}
-        onSave={handleHistogramThresholdsChange}
-        onClose={() => setCustomizingHistogram(false)}
+        open={customizingSizes}
+        thresholds={thresholds}
+        onSave={setThresholds}
+        onClose={() => setCustomizingSizes(false)}
       />
 
       <EditTransactionDialog
         transaction={selectedTransaction}
-        categories={categories.data ?? []}
+        categories={categoryList}
         onClose={() => setSelectedTransaction(null)}
       />
-    </div>
+    </>
   );
 }
 
-interface ChartViewToggleProps<T extends string> {
-  value: T;
-  onChange: (value: T) => void;
-  options: Array<{ value: T; label: string; icon: React.ReactNode }>;
-}
+/** The hairline between summary cells follows whichever way they are laid out. */
+const CELL_DIVIDER = 'border-t border-divider md:border-t-0 md:border-l';
 
-/** Icon switch between two renderings of the same data; one is always active. */
-function ChartViewToggle<T extends string>({ value, onChange, options }: ChartViewToggleProps<T>) {
-  return (
-    <ToggleGroup
-      variant="outline"
-      size="sm"
-      spacing={0}
-      value={[value]}
-      onValueChange={(next: unknown[]) => {
-        const [selected] = next;
-        if (typeof selected === 'string') {
-          onChange(selected as T);
-        }
-      }}
-    >
-      {options.map((option) => (
-        <ToggleGroupItem key={option.value} value={option.value} aria-label={option.label}>
-          {option.icon}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  );
-}
-
-interface StatTileProps {
+interface SummaryCellProps {
   label: string;
-  value: string;
-  detail?: string | false;
-  swatch?: string;
+  className?: string;
+  /** Makes the whole cell a button, with the arrow that says so. */
+  onOpen?: () => void;
+  children: React.ReactNode;
 }
 
-function StatTile({ label, value, detail, swatch }: StatTileProps) {
-  return (
-    <Card>
-      <CardContent className="grid gap-1 py-5">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="flex items-center gap-2 text-2xl font-semibold tracking-tight tabular-nums">
-          {swatch && (
-            <span
-              aria-hidden
-              className="size-3 shrink-0 rounded-full"
-              style={{ backgroundColor: swatch }}
-            />
-          )}
-          {value}
-        </p>
-        {detail && <p className="text-sm text-muted-foreground tabular-nums">{detail}</p>}
-      </CardContent>
-    </Card>
+function SummaryCell({ label, className, onOpen, children }: SummaryCellProps) {
+  const content = (
+    <>
+      <p className="flex items-start justify-between gap-2 text-[13px] text-muted-foreground">
+        {label}
+        {onOpen && <ArrowUpRightIcon className="size-3.5 shrink-0" />}
+      </p>
+      <div className="mt-auto pt-4">{children}</div>
+    </>
+  );
+
+  const cellClassName = cn('flex min-w-0 flex-col px-7 py-6 text-left', className);
+
+  return onOpen ? (
+    <button type="button" onClick={onOpen} className={cn(cellClassName, 'hover:bg-surface-hover')}>
+      {content}
+    </button>
+  ) : (
+    <div className={cellClassName}>{content}</div>
   );
 }
 
-function Placeholder({ children }: { children: React.ReactNode }) {
+function Swatch({ color, className }: { color: string; className?: string }) {
   return (
-    <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
+    <span
+      aria-hidden
+      className={cn('inline-block size-2 rounded-[2px]', className)}
+      style={{ backgroundColor: color }}
+    />
   );
 }

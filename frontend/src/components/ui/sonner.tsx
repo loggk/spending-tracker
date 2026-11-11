@@ -8,12 +8,14 @@ import {
   Loader2Icon,
 } from 'lucide-react';
 
+/** Dark pill at the bottom of the screen, inverted against the warm page. */
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = 'system' } = useTheme();
 
   return (
     <Sonner
       theme={theme as ToasterProps['theme']}
+      position="bottom-center"
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
@@ -24,15 +26,16 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          '--normal-bg': 'var(--popover)',
-          '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
-          '--border-radius': 'var(--radius)',
+          '--normal-bg': 'var(--foreground)',
+          '--normal-text': 'var(--background)',
+          '--normal-border': 'transparent',
+          '--border-radius': '10px',
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: 'cn-toast',
+          toast: 'cn-toast text-[13px]',
+          actionButton: 'bg-transparent! text-[var(--toast-action)]! font-medium',
         },
       }}
       {...props}

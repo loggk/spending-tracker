@@ -34,4 +34,17 @@ export function formatDate(isoDate: string): string {
   });
 }
 
+/** `2026-11` -> "November 2026". */
+export function formatMonth(month: string): string {
+  const [year, index] = month.split('-').map(Number);
+  if (!year || !index) {
+    return month;
+  }
+  return new Date(Date.UTC(year, index - 1, 1)).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 export const today = (): string => new Date().toISOString().slice(0, 10);

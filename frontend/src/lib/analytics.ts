@@ -72,6 +72,8 @@ export function byCategory(transactions: Transaction[], categories: Category[]):
 }
 
 export interface TrendPoint {
+  /** `YYYY-MM-DD` for daily points, `YYYY-MM` for monthly ones. */
+  key: string;
   label: string;
   cents: number;
   totals: Record<string, number>;
@@ -190,6 +192,9 @@ export function byMonthAndCategory(
   };
 }
 
+export const monthTrendPoints = (breakdown: MonthCategoryBreakdown): TrendPoint[] =>
+  breakdown.months.map(({ month, label, cents, totals }) => ({ key: month, label, cents, totals }));
+
 export interface DayTotal {
   /** `YYYY-MM-DD`. */
   date: string;
@@ -302,6 +307,9 @@ export function byDayAndCategory(
     series: byCategory(transactions, categories),
   };
 }
+
+export const dayTrendPoints = (breakdown: DayCategoryBreakdown): TrendPoint[] =>
+  breakdown.days.map(({ date, label, cents, totals }) => ({ key: date, label, cents, totals }));
 
 /**
  * Decides whether the time series should display daily or monthly granularity.
@@ -697,8 +705,11 @@ export interface HeatmapDay {
   cents: number;
   count: number;
   isNoSpend: boolean;
+  /** 0 for a no-spend day, else the quartile of spend across the range. */
   level: 0 | 1 | 2 | 3 | 4;
   isFuture: boolean;
+  /** A day its month shows but the selected range does not cover. */
+  isOutsideRange: boolean;
 }
 
 export interface HeatmapMonth {
@@ -726,6 +737,17 @@ export interface HeatmapRange {
   to?: string;
 }
 
+/** Linearly interpolated percentile of an ascending list. */
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) {
+    return 0;
+  }
+  const position = (sorted.length - 1) * p;
+  const low = sorted[Math.floor(position)] ?? 0;
+  const high = sorted[Math.ceil(position)] ?? low;
+  return low + (high - low) * (position - Math.floor(position));
+}
+
 /**
  * Transforms transactions into a calendar-based daily spending heatmap.
  * Calculates No-Spend Days, current streak, and record streak of zero-spend days.
@@ -736,7 +758,6 @@ export function byHeatmap(
   todayStr: string = new Date().toISOString().slice(0, 10),
 ): HeatmapBreakdown {
   const spendByDate = new Map<string, { cents: number; count: number }>();
-  let maxDailyCents = 0;
 
   for (const t of transactions) {
     if (t.amountCents <= 0) {
@@ -747,9 +768,6 @@ export function byHeatmap(
     existing.cents += t.amountCents;
     existing.count += 1;
     spendByDate.set(d, existing);
-    if (existing.cents > maxDailyCents) {
-      maxDailyCents = existing.cents;
-    }
   }
 
   let fromDate = range.from?.slice(0, 10);
@@ -808,20 +826,11 @@ export function byHeatmap(
         const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
         const dow = (new Date(Date.UTC(currentY, currentM - 1, day)).getUTCDay() + 6) % 7;
         const isFuture = dateStr > todayStr;
+        const isOutsideRange = dateStr < fromDate || dateStr > toDate;
+        const counts = !isFuture && !isOutsideRange;
         const entry = spendByDate.get(dateStr);
         const cents = entry ? entry.cents : 0;
         const count = entry ? entry.count : 0;
-        const isNoSpend = !isFuture && cents === 0;
-
-        let level: 0 | 1 | 2 | 3 | 4 = 0;
-        if (!isFuture && cents > 0) {
-          if (maxDailyCents <= 0) {
-            level = 1;
-          } else {
-            const ratio = cents / maxDailyCents;
-            level = ratio <= 0.25 ? 1 : ratio <= 0.5 ? 2 : ratio <= 0.75 ? 3 : 4;
-          }
-        }
 
         const heatmapDay: HeatmapDay = {
           date: dateStr,
@@ -830,16 +839,18 @@ export function byHeatmap(
           month: monthStr,
           cents,
           count,
-          isNoSpend,
-          level,
+          isNoSpend: counts && cents === 0,
+          // Filled in below, once the spread of the whole range is known.
+          level: 0,
           isFuture,
+          isOutsideRange,
         };
 
         monthDays.push(heatmapDay);
         allDays.push(heatmapDay);
 
-        monthTotalCents += cents;
-        if (isNoSpend) {
+        monthTotalCents += counts ? cents : 0;
+        if (heatmapDay.isNoSpend) {
           monthNoSpendDays += 1;
         }
       }
@@ -861,7 +872,21 @@ export function byHeatmap(
     }
   }
 
-  const activeDays = allDays.filter((d) => !d.isFuture);
+  const activeDays = allDays.filter((d) => !d.isFuture && !d.isOutsideRange);
+
+  // Shading is relative to the range on screen, so a quiet month is not washed
+  // out by one outlier: each spending day lands in a quartile of the others.
+  const spread = activeDays
+    .filter((d) => d.cents > 0)
+    .map((d) => d.cents)
+    .sort((a, b) => a - b);
+  const cuts = [0.25, 0.5, 0.75].map((p) => percentile(spread, p));
+  for (const day of activeDays) {
+    if (day.cents > 0) {
+      day.level = day.cents <= cuts[0]! ? 1 : day.cents <= cuts[1]! ? 2 : day.cents <= cuts[2]! ? 3 : 4;
+    }
+  }
+
   let recordStreak = 0;
   let runningStreak = 0;
   let totalCents = 0;

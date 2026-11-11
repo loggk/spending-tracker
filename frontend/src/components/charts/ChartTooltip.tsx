@@ -1,8 +1,18 @@
+import type { ReactNode } from 'react';
 import { formatAmount } from '@/lib/format';
+
+/** The surface every chart tooltip sits on. */
+export function TooltipCard({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid min-w-44 gap-1 rounded-xl border border-border bg-popover px-3 py-2 text-[13px] shadow-popover">
+      {children}
+    </div>
+  );
+}
 
 interface ChartTooltipProps {
   active?: boolean;
-  payload?: Array<{ payload: { cents: number }; name?: string }>;
+  payload?: Array<{ payload: { cents: number } }>;
   label?: string;
   nameKey?: 'name' | 'label';
 }
@@ -17,9 +27,9 @@ export function ChartTooltip({ active, payload, label, nameKey = 'label' }: Char
   const title = typeof point[nameKey] === 'string' ? point[nameKey] : label;
 
   return (
-    <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
+    <TooltipCard>
       <p className="text-muted-foreground">{title}</p>
       <p className="font-medium tabular-nums">{formatAmount(point.cents)}</p>
-    </div>
+    </TooltipCard>
   );
 }

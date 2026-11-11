@@ -11,7 +11,7 @@ export function ChartLegend({ items }: { items: LegendItem[] }) {
         <li key={item.key} className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span
             aria-hidden
-            className="size-2.5 shrink-0 rounded-full"
+            className="size-2 shrink-0 rounded-[2px]"
             style={{ backgroundColor: item.color }}
           />
           {item.name}

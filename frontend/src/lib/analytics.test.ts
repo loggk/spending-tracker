@@ -617,7 +617,8 @@ describe('byHeatmap', () => {
     expect(result.recordStreak).toBe(4);
     expect(result.currentStreak).toBe(4); // Aug 6, 7, 8, 9
 
-    // Check color levels: max spend is $100 (Aug 1) -> level 4. Aug 5 is $50 (50%) -> level 2.
+    // Shading is by quartile of the spending days in range: of [$50, $100],
+    // $50 sits in the bottom quarter and $100 above the top one.
     const day1 = aug?.days[0];
     const day2 = aug?.days[1];
     const day5 = aug?.days[4];
@@ -632,7 +633,7 @@ describe('byHeatmap', () => {
     expect(day2?.isNoSpend).toBe(true);
 
     expect(day5?.cents).toBe(5000);
-    expect(day5?.level).toBe(2);
+    expect(day5?.level).toBe(1);
 
     expect(day10?.isFuture).toBe(true);
     expect(day10?.isNoSpend).toBe(false);

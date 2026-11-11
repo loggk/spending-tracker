@@ -1,232 +1,246 @@
-import { useState } from 'react';
-import { createPortal } from 'react-dom';
-import type { HeatmapBreakdown, HeatmapDay } from '@/lib/analytics';
-import { formatAmount } from '@/lib/format';
+import { type CSSProperties, type ReactNode, useState } from 'react';
+import type { HeatmapBreakdown, HeatmapDay, HeatmapMonth } from '@/lib/analytics';
+import { formatAmount, today } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-export interface SpendingHeatmapProps {
-  breakdown: HeatmapBreakdown;
+const WEEKDAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const FILL = ['bg-heat-0', 'bg-heat-1', 'bg-heat-2', 'bg-heat-3', 'bg-heat-4'] as const;
+
+/**
+ * Every day of the period as a calendar, shaded by how much was spent. One
+ * month gets its own large grid; a longer period gets a small grid per month.
+ */
+export function SpendingHeatmap({ breakdown }: { breakdown: HeatmapBreakdown }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<HeatmapDay | null>(null);
+
+  const selectedDay = breakdown.allDays.find((day) => day.date === selected) ?? null;
+  const shown = hovered ?? selectedDay;
+  const singleMonth = breakdown.months.length === 1;
+  const now = today();
+
+  const cell = (day: HeatmapDay): DayCellProps => ({
+    day,
+    isToday: day.date === now,
+    isSelected: day.date === selected,
+    onSelect: () => setSelected(day.date === selected ? null : day.date),
+    onHover: setHovered,
+  });
+
+  return (
+    <div className="flex flex-wrap gap-x-10 gap-y-6">
+      <div className="flex-[1_1_460px]">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h3 className="font-heading text-[15px] font-medium">Daily spending</h3>
+          <p className="text-xs text-muted-foreground tabular-nums">{readout(shown)}</p>
+        </div>
+
+        {singleMonth ? (
+          <div className="mt-4">
+            <div className="grid grid-cols-7 gap-1.5 text-[11px] text-muted-foreground">
+              {WEEKDAY_HEADERS.map((name) => (
+                <div key={name}>{name}</div>
+              ))}
+            </div>
+            <MonthGrid
+              month={breakdown.months[0]}
+              className="mt-1.5 gap-1.5"
+              renderDay={(day) => <LargeDay key={day.date} {...cell(day)} />}
+            />
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-4 gap-y-[18px]">
+            {breakdown.months.map((month) => (
+              <div key={month.month}>
+                <div className="flex items-baseline justify-between gap-2 text-xs">
+                  <span className="font-medium">{shortMonth(month.month)}</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    {compact(month.totalCents)}
+                  </span>
+                </div>
+                <MonthGrid
+                  month={month}
+                  className="mt-1.5 gap-[3px]"
+                  renderDay={(day) => <SmallDay key={day.date} {...cell(day)} />}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-[0_1_220px] flex-col pt-[34px]">
+        <div className="grid gap-[18px]">
+          <Stat label="No-spend days" value={String(breakdown.noSpendDays)}>
+            of {breakdown.totalDays} · {breakdown.noSpendPercentage}%
+          </Stat>
+          <Stat label="Current streak" value={days(breakdown.currentStreak)} />
+          <Stat label="Best streak" value={days(breakdown.recordStreak)} />
+        </div>
+
+        <div className="mt-auto flex items-center gap-1.5 pt-6 text-[11px] text-muted-foreground">
+          <span>$0</span>
+          {FILL.map((fill) => (
+            <span key={fill} aria-hidden className={cn('size-3.5 rounded-[3px]', fill)} />
+          ))}
+          <span>High</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-const WEEKDAY_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-
-function formatHeatmapDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  if (!y || !m || !d) {
-    return dateStr;
+function MonthGrid({
+  month,
+  className,
+  renderDay,
+}: {
+  month: HeatmapMonth | undefined;
+  className?: string;
+  renderDay: (day: HeatmapDay) => ReactNode;
+}) {
+  if (!month) {
+    return null;
   }
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+
+  return (
+    <div className={cn('grid grid-cols-7', className)}>
+      {/* The month rarely starts on a Monday, so the first row needs a run-up. */}
+      {Array.from({ length: month.firstDayOffset }, (_, index) => (
+        <div key={`spacer-${index}`} />
+      ))}
+      {month.days.map(renderDay)}
+    </div>
+  );
+}
+
+interface DayCellProps {
+  day: HeatmapDay;
+  isToday: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+  onHover: (day: HeatmapDay | null) => void;
+}
+
+function LargeDay(props: DayCellProps) {
+  const { day } = props;
+
+  return (
+    <DayCell {...props} className="h-[52px] flex-col items-start justify-between rounded-lg px-2 py-1.5">
+      <span className="text-[11px] font-medium">{day.dayOfMonth}</span>
+      {day.cents > 0 && <span className="text-[10px] tabular-nums">{compact(day.cents)}</span>}
+    </DayCell>
+  );
+}
+
+function SmallDay(props: DayCellProps) {
+  return <DayCell {...props} className="aspect-square rounded-[3px]" />;
+}
+
+function DayCell({
+  day,
+  isToday,
+  isSelected,
+  onSelect,
+  onHover,
+  className,
+  children,
+}: DayCellProps & { className: string; children?: ReactNode }) {
+  const outlines = [
+    // A future day is an empty outline: nothing has been spent there yet.
+    day.isFuture && 'inset 0 0 0 1px var(--divider)',
+    isSelected ? '0 0 0 2px var(--primary)' : isToday ? '0 0 0 1.5px var(--foreground)' : null,
+  ].filter(Boolean);
+
+  const style: CSSProperties = outlines.length > 0 ? { boxShadow: outlines.join(', ') } : {};
+
+  return (
+    <button
+      type="button"
+      disabled={day.isFuture || day.isOutsideRange}
+      onClick={onSelect}
+      onMouseEnter={() => onHover(day)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(day)}
+      onBlur={() => onHover(null)}
+      style={style}
+      aria-label={readout(day)}
+      className={cn(
+        'flex w-full text-left outline-none transition-colors',
+        className,
+        day.isFuture
+          ? 'bg-transparent'
+          : day.isOutsideRange
+            ? 'bg-background'
+            : cn(FILL[day.level], 'cursor-pointer'),
+        day.level >= 3 && 'text-white',
+        day.level < 3 && 'text-muted-foreground',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div>
+      <p className="text-[13px] text-muted-foreground">{label}</p>
+      <p className="text-[22px] font-semibold tabular-nums">
+        {value}
+        {children && (
+          <span className="ml-1.5 text-[13px] font-normal text-muted-foreground">{children}</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/** The one line that says what the pointer is on. */
+function readout(day: HeatmapDay | null): string {
+  if (!day) {
+    return 'Hover or tap a day';
+  }
+
+  const date = fullDate(day.date);
+  if (day.isFuture || day.isOutsideRange) {
+    return date;
+  }
+  if (day.cents === 0) {
+    return `${date} · No spend`;
+  }
+  return `${date} · ${formatAmount(day.cents)} · ${day.count} ${
+    day.count === 1 ? 'purchase' : 'purchases'
+  }`;
+}
+
+const days = (count: number): string => `${count} ${count === 1 ? 'day' : 'days'}`;
+
+/** Whole dollars: the calendar has no room for cents. */
+const compact = (cents: number): string => `$${Math.round(cents / 100).toLocaleString()}`;
+
+const utcDate = (iso: string): Date => {
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1));
+};
+
+const fullDate = (iso: string): string =>
+  utcDate(iso).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     timeZone: 'UTC',
   });
-}
 
-function getLevelClass(level: HeatmapDay['level'], isNoSpend: boolean, isFuture: boolean): string {
-  if (isFuture) {
-    return 'border-dashed border-border/30 bg-transparent text-muted-foreground/30 cursor-default';
-  }
-  if (isNoSpend) {
-    return 'border-border/40 bg-muted/40 text-muted-foreground/70 hover:border-foreground/30 hover:bg-muted/60';
-  }
-  switch (level) {
-    case 1:
-      return 'border-emerald-200 bg-emerald-100 text-emerald-900 hover:brightness-95 dark:border-emerald-800/60 dark:bg-emerald-950/80 dark:text-emerald-200';
-    case 2:
-      return 'border-emerald-400 bg-emerald-300 text-emerald-950 hover:brightness-95 dark:border-emerald-700 dark:bg-emerald-800 dark:text-emerald-100';
-    case 3:
-      return 'border-emerald-600 bg-emerald-500 text-white hover:brightness-95 dark:border-emerald-500 dark:bg-emerald-600 dark:text-white';
-    case 4:
-      return 'border-emerald-800 bg-emerald-700 text-white hover:brightness-95 dark:border-emerald-400 dark:bg-emerald-500 dark:text-white';
-    default:
-      return 'border-border/40 bg-muted/40 text-muted-foreground/70 hover:border-foreground/30 hover:bg-muted/60';
-  }
-}
-
-/**
- * Calendar-based daily spending heatmap with Monday–Sunday columns.
- * Highlights No-Spend days, streaks, and color-scaled spending intensity.
- */
-export function SpendingHeatmap({ breakdown }: { breakdown: HeatmapBreakdown }) {
-  const [selectedDay, setSelectedDay] = useState<HeatmapDay | null>(null);
-  const [hovered, setHovered] = useState<{ day: HeatmapDay; rect: DOMRect } | null>(null);
-
-  const { months, noSpendDays, noSpendPercentage, currentStreak, recordStreak } = breakdown;
-
-  return (
-    <div className="space-y-4">
-      {/* Gamification & Discipline stats */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border bg-muted/20 p-3">
-          <p className="text-xs text-muted-foreground">No-spend days</p>
-          <p className="text-xl font-semibold tracking-tight text-foreground tabular-nums">
-            {noSpendDays}
-            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-              ({noSpendPercentage}%)
-            </span>
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-muted/20 p-3">
-          <p className="text-xs text-muted-foreground">Current streak</p>
-          <p className="text-xl font-semibold tracking-tight text-foreground tabular-nums">
-            {currentStreak} {currentStreak === 1 ? 'day' : 'days'}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-muted/20 p-3">
-          <p className="text-xs text-muted-foreground">Best streak</p>
-          <p className="text-xl font-semibold tracking-tight text-foreground tabular-nums">
-            {recordStreak} {recordStreak === 1 ? 'day' : 'days'}
-          </p>
-        </div>
-      </div>
-
-      {/* Color Intensity Scale Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>No-spend days indicate zero purchases</span>
-        <div className="flex items-center gap-1.5">
-          <span>$0</span>
-          <span className="size-3 rounded-xs border border-border/40 bg-muted/40" />
-          <span className="size-3 rounded-xs bg-emerald-100 dark:bg-emerald-950" />
-          <span className="size-3 rounded-xs bg-emerald-300 dark:bg-emerald-800" />
-          <span className="size-3 rounded-xs bg-emerald-500 dark:bg-emerald-600" />
-          <span className="size-3 rounded-xs bg-emerald-700 dark:bg-emerald-400" />
-          <span>High spend</span>
-        </div>
-      </div>
-
-      {/* Selected Day Inspection Bar (for tap on mobile or desktop click) */}
-      {selectedDay && (
-        <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs">
-          <span className="font-medium text-foreground">{formatHeatmapDate(selectedDay.date)}</span>
-          <span className="tabular-nums">
-            {selectedDay.isNoSpend ? (
-              <span className="text-muted-foreground">No spend · $0.00</span>
-            ) : selectedDay.isFuture ? (
-              <span className="text-muted-foreground">Upcoming day</span>
-            ) : (
-              <span>
-                <strong className="font-semibold text-foreground">
-                  {formatAmount(selectedDay.cents)}
-                </strong>{' '}
-                · {selectedDay.count} purchase{selectedDay.count === 1 ? '' : 's'}
-              </span>
-            )}
-          </span>
-        </div>
-      )}
-
-      {/* Calendar Months Grid */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {months.map((month) => (
-          <div key={month.month} className="rounded-lg border bg-card p-3 shadow-xs">
-            <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-foreground">{month.label}</h4>
-              <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
-                {formatAmount(month.totalCents)}
-              </span>
-            </div>
-
-            {/* Weekday headers: Mon through Sun */}
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground/75">
-              {WEEKDAY_HEADERS.map((name, i) => (
-                <div key={i}>{name}</div>
-              ))}
-            </div>
-
-            {/* Days grid */}
-            <div className="mt-1.5 grid grid-cols-7 gap-1">
-              {/* Spacers before the 1st of the month */}
-              {Array.from({ length: month.firstDayOffset }).map((_, i) => (
-                <div key={`spacer-${i}`} className="aspect-square" />
-              ))}
-
-              {/* Day square tiles */}
-              {month.days.map((day) => {
-                const isSelected = selectedDay?.date === day.date;
-                return (
-                  <button
-                    key={day.date}
-                    type="button"
-                    disabled={day.isFuture}
-                    onClick={() => setSelectedDay(day)}
-                    onMouseEnter={(e) => {
-                      if (!day.isFuture) {
-                        setHovered({ day, rect: e.currentTarget.getBoundingClientRect() });
-                      }
-                    }}
-                    onMouseLeave={() => setHovered(null)}
-                    onFocus={(e) => {
-                      if (!day.isFuture) {
-                        setHovered({ day, rect: e.currentTarget.getBoundingClientRect() });
-                      }
-                    }}
-                    onBlur={() => setHovered(null)}
-                    className={cn(
-                      'relative flex aspect-square items-center justify-center rounded-xs border text-[10px] font-medium transition-all outline-none',
-                      getLevelClass(day.level, day.isNoSpend, day.isFuture),
-                      isSelected ? 'ring-2 ring-ring ring-offset-1' : '',
-                      day.isFuture ? '' : 'cursor-pointer hover:scale-105',
-                    )}
-                    aria-label={`${formatHeatmapDate(day.date)}: ${
-                      day.isNoSpend ? 'No spend' : formatAmount(day.cents)
-                    }`}
-                  >
-                    <span>{day.dayOfMonth}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Floating portal tooltip immune to overflow-hidden and screen clipping */}
-      {hovered && typeof document !== 'undefined' && (
-        <HeatmapPortalTooltip day={hovered.day} rect={hovered.rect} />
-      )}
-    </div>
-  );
-}
-
-function HeatmapPortalTooltip({ day, rect }: { day: HeatmapDay; rect: DOMRect }) {
-  const tooltipWidth = 170;
-  const centerX = rect.left + rect.width / 2;
-  const minX = tooltipWidth / 2 + 12;
-  const maxX = window.innerWidth - tooltipWidth / 2 - 12;
-  const clampedX = Math.max(minX, Math.min(maxX, centerX));
-
-  const showBelow = rect.top < 64;
-  const top = showBelow ? rect.bottom + 8 : rect.top - 8;
-
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        left: `${clampedX}px`,
-        top: `${top}px`,
-        transform: showBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
-        pointerEvents: 'none',
-        zIndex: 9999,
-      }}
-      className="whitespace-nowrap rounded-md border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md"
-    >
-      <p className="font-semibold text-foreground">{formatHeatmapDate(day.date)}</p>
-      {day.isNoSpend ? (
-        <p className="text-muted-foreground">No spend · $0.00</p>
-      ) : (
-        <p className="tabular-nums">
-          <span className="font-medium text-foreground">{formatAmount(day.cents)}</span>
-          <span className="text-muted-foreground">
-            {' '}
-            · {day.count} purchase{day.count === 1 ? '' : 's'}
-          </span>
-        </p>
-      )}
-    </div>,
-    document.body,
-  );
-}
+const shortMonth = (month: string): string =>
+  utcDate(`${month}-01`).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });

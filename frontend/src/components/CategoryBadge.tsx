@@ -28,14 +28,14 @@ export function CategoryBadge({ category, className, variant = 'plain' }: Catego
   }
 
   if (!category) {
-    return <span className={cn('text-sm text-muted-foreground', className)}>Uncategorized</span>;
+    return <span className={cn('text-[13px] text-muted-foreground', className)}>Uncategorized</span>;
   }
 
   return (
-    <span className={cn('flex min-w-0 items-center gap-2 text-sm', className)}>
+    <span className={cn('flex min-w-0 items-center gap-2 text-[13px]', className)}>
       <span
         aria-hidden
-        className="size-2.5 shrink-0 rounded-full"
+        className="size-2 shrink-0 rounded-full"
         style={{ backgroundColor: category.color }}
       />
       <span className="truncate">{category.name}</span>

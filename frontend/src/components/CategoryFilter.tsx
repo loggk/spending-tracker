@@ -1,6 +1,7 @@
 import type { Category } from '@spending-tracker/shared';
 import { ListFilterIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -32,7 +33,10 @@ export function CategoryFilter({ categories, selected, onChange }: CategoryFilte
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant={selected.size > 0 ? 'secondary' : 'outline'} size="sm">
+          <Button
+            variant="outline"
+            className={cn(selected.size > 0 && 'border-transparent bg-track')}
+          >
             <ListFilterIcon data-icon="inline-start" />
             {selected.size > 0 ? `Categories (${selected.size})` : 'Categories'}
           </Button>

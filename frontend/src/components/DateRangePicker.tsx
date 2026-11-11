@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { CalendarIcon } from 'lucide-react';
-import type { DateRange as DayPickerRange } from 'react-day-picker';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatDate } from '@/lib/format';
-import { WIDE_SCREEN, useMediaQuery } from '@/lib/use-media-query';
+import { cn } from '@/lib/utils';
 
 /** Both bounds are ISO `YYYY-MM-DD`; either side may be open. */
 export interface DateRange {
@@ -13,104 +13,104 @@ export interface DateRange {
   to?: string;
 }
 
-interface DateRangePickerProps {
+interface DateRangeFieldsProps {
   value: DateRange;
   onChange: (value: DateRange) => void;
-  placeholder?: string;
-  active?: boolean;
+  onDone: () => void;
 }
 
-const pad = (value: number) => String(value).padStart(2, '0');
+/** Drops the year when both ends share it: "Sep 1 – Oct 31". */
+function formatRange(value: DateRange): string | null {
+  const from = value.from ? formatDate(value.from) : null;
+  const to = value.to ? formatDate(value.to) : null;
 
-/** The calendar hands back local-midnight Dates; read the calendar fields, not UTC. */
-const toIso = (date: Date): string =>
-  `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-
-function parseIso(iso: string | undefined): Date | undefined {
-  if (!iso) {
-    return undefined;
+  if (from && to) {
+    const sameYear = value.from?.slice(0, 4) === value.to?.slice(0, 4);
+    return `${sameYear ? from.replace(/,.*/, '') : from} – ${to}`;
   }
-  const [year, month, day] = iso.split('-').map(Number);
-  if (!year || !month || !day) {
-    return undefined;
-  }
-  return new Date(year, month - 1, day);
-}
-
-function label(value: DateRange, placeholder: string): string {
-  if (value.from && value.to) {
-    return value.from === value.to
-      ? formatDate(value.from)
-      : `${formatDate(value.from)} – ${formatDate(value.to)}`;
-  }
-  if (value.from) {
-    return `From ${formatDate(value.from)}`;
-  }
-  if (value.to) {
-    return `Through ${formatDate(value.to)}`;
-  }
-  return placeholder;
+  return from ? `From ${from}` : to ? `Through ${to}` : null;
 }
 
 /**
- * A range calendar behind a button. Selections apply as they are made.
+ * The body of every date-range popover: two bounds and a way out. Shared so the
+ * dashboard's custom range and the transactions filter are the same control.
  */
+export function DateRangeFields({ value, onChange, onDone }: DateRangeFieldsProps) {
+  return (
+    <div className="grid w-[280px] gap-3 p-0.5">
+      <div className="grid grid-cols-2 gap-2.5">
+        <Bound label="From" id="range-from" value={value.from} onChange={(from) => onChange({ ...value, from })} />
+        <Bound label="To" id="range-to" value={value.to} onChange={(to) => onChange({ ...value, to })} />
+      </div>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          className="text-[12.8px] font-medium text-muted-foreground hover:text-foreground"
+          onClick={() => onChange({})}
+        >
+          Clear
+        </button>
+        <Button size="sm" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Bound({
+  label,
+  id,
+  value,
+  onChange,
+}: {
+  label: string;
+  id: string;
+  value: string | undefined;
+  onChange: (value: string | undefined) => void;
+}) {
+  return (
+    <div className="grid gap-1">
+      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="date"
+        className="h-8"
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value || undefined)}
+      />
+    </div>
+  );
+}
+
+/** The filter-bar control: an outline button that opens the shared fields. */
 export function DateRangePicker({
   value,
   onChange,
-  placeholder = 'All dates',
-  active = false,
-}: DateRangePickerProps) {
+}: {
+  value: DateRange;
+  onChange: (value: DateRange) => void;
+}) {
   const [open, setOpen] = useState(false);
-  const wide = useMediaQuery(WIDE_SCREEN);
-  const hasValue = Boolean(value.from ?? value.to);
-  const selected: DayPickerRange | undefined = hasValue
-    ? { from: parseIso(value.from), to: parseIso(value.to) }
-    : undefined;
-
-  function handleSelect(range: DayPickerRange | undefined) {
-    onChange({
-      from: range?.from ? toIso(range.from) : undefined,
-      to: range?.to ? toIso(range.to) : undefined,
-    });
-  }
+  const label = formatRange(value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
-            variant={active || hasValue ? 'secondary' : 'outline'}
-            size="sm"
-            className="max-w-full"
+            variant="outline"
+            className={cn('max-w-full', label && 'border-transparent bg-track')}
           >
             <CalendarIcon data-icon="inline-start" />
-            <span className="truncate">{label(value, placeholder)}</span>
+            <span className="truncate">{label ?? 'Dates'}</span>
           </Button>
         }
       />
-      <PopoverContent align="end" className="max-h-(--available-height) w-auto overflow-y-auto p-2">
-        <Calendar
-          mode="range"
-          numberOfMonths={wide ? 2 : 1}
-          showOutsideDays={false}
-          defaultMonth={selected?.from ?? new Date()}
-          selected={selected}
-          onSelect={handleSelect}
-        />
-        {hasValue && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="self-end"
-            onClick={() => {
-              onChange({});
-              setOpen(false);
-            }}
-          >
-            Clear
-          </Button>
-        )}
+      <PopoverContent align="end" className="w-auto">
+        <DateRangeFields value={value} onChange={onChange} onDone={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
   );

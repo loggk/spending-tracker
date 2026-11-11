@@ -1,7 +1,8 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import type { Category } from '@spending-tracker/shared';
 import { toast } from 'sonner';
-import { ColorInput } from '@/components/ColorInput';
+import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
+import { Field } from '@/components/FormCard';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,7 +13,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useUpdateCategory } from '@/lib/queries';
 
 interface EditCategoryDialogProps {
@@ -39,10 +39,7 @@ export function EditCategoryDialog({ category, onClose }: EditCategoryDialogProp
     updateCategory.mutate(
       { id: category.id, name: draft.name.trim(), color: draft.color },
       {
-        onSuccess: () => {
-          toast.success('Category updated');
-          onClose();
-        },
+        onSuccess: onClose,
         onError: (error: Error) => toast.error(error.message),
       },
     );
@@ -57,8 +54,7 @@ export function EditCategoryDialog({ category, onClose }: EditCategoryDialogProp
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="edit-category-name">Name</Label>
+          <Field label="Name" htmlFor="edit-category-name">
             <Input
               id="edit-category-name"
               required
@@ -66,15 +62,15 @@ export function EditCategoryDialog({ category, onClose }: EditCategoryDialogProp
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
             />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-category-color">Color</Label>
-            <ColorInput
+          </Field>
+
+          <Field label="Color" htmlFor="edit-category-color">
+            <ColorSwatchPicker
               id="edit-category-color"
               value={draft.color}
               onChange={(color) => setDraft({ ...draft, color })}
             />
-          </div>
+          </Field>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
