@@ -80,7 +80,10 @@ export function SpendingTrendChart({ points, series, stacked }: SpendingTrendCha
             tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
             tickFormatter={(value: number) => `$${Math.round(value / 100).toLocaleString()}`}
           />
-          <Tooltip cursor={false} content={<TrendTooltip series={stackOrder} stacked={stacked} />} />
+          <Tooltip
+            cursor={false}
+            content={<TrendTooltip series={stackOrder} stacked={stacked} />}
+          />
 
           {stacked ? (
             stackOrder.map((entry) => (

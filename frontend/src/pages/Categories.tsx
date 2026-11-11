@@ -183,7 +183,10 @@ function CategoryRow({ category, usage, onEdit, onDelete }: CategoryRowProps) {
 }
 
 /** Per-category totals over every transaction, plus whatever has no category left. */
-function useUsage(categories: Category[], transactions: { categoryId: string; amountCents: number }[] | undefined) {
+function useUsage(
+  categories: Category[],
+  transactions: { categoryId: string; amountCents: number }[] | undefined,
+) {
   return useMemo(() => {
     const known = new Set(categories.map((category) => category.id));
     const usage = new Map<string, CategoryUsage>();

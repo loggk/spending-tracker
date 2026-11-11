@@ -28,13 +28,7 @@ const FILL = 82;
  * A plain column chart: a baseline, one bar per category, a value above and a
  * name below. No axis and no grid, because every bar already states its number.
  */
-export function ColumnChart({
-  columns,
-  height,
-  barWidth,
-  gap,
-  valueClassName,
-}: ColumnChartProps) {
+export function ColumnChart({ columns, height, barWidth, gap, valueClassName }: ColumnChartProps) {
   const max = Math.max(...columns.map((column) => column.value), 0);
   const grid = {
     display: 'grid',

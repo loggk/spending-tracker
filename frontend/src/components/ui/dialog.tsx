@@ -85,10 +85,7 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      className={cn(
-        'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
-        className,
-      )}
+      className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
       {...props}
     >
       {children}
@@ -103,7 +100,10 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn('font-heading text-[17px] leading-none font-semibold tracking-[-0.02em]', className)}
+      className={cn(
+        'font-heading text-[17px] leading-none font-semibold tracking-[-0.02em]',
+        className,
+      )}
       {...props}
     />
   );

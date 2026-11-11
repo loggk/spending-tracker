@@ -127,7 +127,10 @@ function LargeDay(props: DayCellProps) {
   const { day } = props;
 
   return (
-    <DayCell {...props} className="h-[52px] flex-col items-start justify-between rounded-lg px-2 py-1.5">
+    <DayCell
+      {...props}
+      className="h-[52px] flex-col items-start justify-between rounded-lg px-2 py-1.5"
+    >
       <span className="text-[11px] font-medium">{day.dayOfMonth}</span>
       {day.cents > 0 && <span className="text-[10px] tabular-nums">{compact(day.cents)}</span>}
     </DayCell>
@@ -183,15 +186,7 @@ function DayCell({
   );
 }
 
-function Stat({
-  label,
-  value,
-  children,
-}: {
-  label: string;
-  value: string;
-  children?: ReactNode;
-}) {
+function Stat({ label, value, children }: { label: string; value: string; children?: ReactNode }) {
   return (
     <div>
       <p className="text-[13px] text-muted-foreground">{label}</p>

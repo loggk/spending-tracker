@@ -112,7 +112,11 @@ export function Dashboard() {
   const categoryList = categories.data ?? EMPTY_CATEGORIES;
 
   const firstDate = useMemo(
-    () => rows.reduce<string | undefined>((min, row) => (!min || row.date < min ? row.date : min), undefined),
+    () =>
+      rows.reduce<string | undefined>(
+        (min, row) => (!min || row.date < min ? row.date : min),
+        undefined,
+      ),
     [rows],
   );
   const period = describePeriod(preset, custom, firstDate);

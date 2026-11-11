@@ -39,8 +39,18 @@ export function DateRangeFields({ value, onChange, onDone }: DateRangeFieldsProp
   return (
     <div className="grid w-[280px] gap-3 p-0.5">
       <div className="grid grid-cols-2 gap-2.5">
-        <Bound label="From" id="range-from" value={value.from} onChange={(from) => onChange({ ...value, from })} />
-        <Bound label="To" id="range-to" value={value.to} onChange={(to) => onChange({ ...value, to })} />
+        <Bound
+          label="From"
+          id="range-from"
+          value={value.from}
+          onChange={(from) => onChange({ ...value, from })}
+        />
+        <Bound
+          label="To"
+          id="range-to"
+          value={value.to}
+          onChange={(to) => onChange({ ...value, to })}
+        />
       </div>
       <div className="flex items-center justify-between">
         <button

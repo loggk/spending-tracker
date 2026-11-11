@@ -883,7 +883,8 @@ export function byHeatmap(
   const cuts = [0.25, 0.5, 0.75].map((p) => percentile(spread, p));
   for (const day of activeDays) {
     if (day.cents > 0) {
-      day.level = day.cents <= cuts[0]! ? 1 : day.cents <= cuts[1]! ? 2 : day.cents <= cuts[2]! ? 3 : 4;
+      day.level =
+        day.cents <= cuts[0]! ? 1 : day.cents <= cuts[1]! ? 2 : day.cents <= cuts[2]! ? 3 : 4;
     }
   }
 

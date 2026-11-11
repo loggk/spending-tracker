@@ -35,7 +35,7 @@ const TRACK = {
 
 const ITEM = {
   md: 'h-7 gap-1.5 rounded-[7px] px-3 text-[13px] font-medium',
-  sm: "h-6 w-[26px] rounded-md [&_svg]:size-3.5",
+  sm: 'h-6 w-[26px] rounded-md [&_svg]:size-3.5',
 } as const;
 
 /**
@@ -63,7 +63,9 @@ export function SegmentedControl<T extends string>({
         const itemClassName = cn(
           'inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-primary/15',
           ITEM[size],
-          active ? 'bg-card text-foreground shadow-segment' : 'text-muted-foreground hover:text-foreground',
+          active
+            ? 'bg-card text-foreground shadow-segment'
+            : 'text-muted-foreground hover:text-foreground',
         );
 
         const rendered = renderItem?.(option, { className: itemClassName, active });

@@ -28,7 +28,9 @@ export function CategoryBadge({ category, className, variant = 'plain' }: Catego
   }
 
   if (!category) {
-    return <span className={cn('text-[13px] text-muted-foreground', className)}>Uncategorized</span>;
+    return (
+      <span className={cn('text-[13px] text-muted-foreground', className)}>Uncategorized</span>
+    );
   }
 
   return (

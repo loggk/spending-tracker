@@ -14,9 +14,7 @@ export function PageHeader({ eyebrow, title, description, actions }: PageHeaderP
       <div className="min-w-0">
         {eyebrow && <p className="text-[13px] text-muted-foreground tabular-nums">{eyebrow}</p>}
         <h1 className="text-[26px] leading-8 font-semibold tracking-[-0.03em]">{title}</h1>
-        {description && (
-          <p className="mt-1.5 text-[13px] text-muted-foreground">{description}</p>
-        )}
+        {description && <p className="mt-1.5 text-[13px] text-muted-foreground">{description}</p>}
       </div>
       {actions}
     </div>

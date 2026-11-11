@@ -201,12 +201,7 @@ export function Transactions() {
               <UploadIcon data-icon="inline-start" />
               Import CSV
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={rows.length === 0}
-            >
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={rows.length === 0}>
               <DownloadIcon data-icon="inline-start" />
               Export CSV
             </Button>
@@ -488,10 +483,7 @@ interface RowActionsProps {
 function RowActions({ transaction, onEdit, onDelete }: RowActionsProps) {
   return (
     <div className="-mr-1 flex shrink-0 justify-end gap-0.5">
-      <IconButton
-        label={`Edit ${transaction.description}`}
-        onClick={() => onEdit(transaction)}
-      >
+      <IconButton label={`Edit ${transaction.description}`} onClick={() => onEdit(transaction)}>
         <PencilIcon />
       </IconButton>
       <IconButton
