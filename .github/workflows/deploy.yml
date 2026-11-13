@@ -49,9 +49,25 @@ jobs:
       - name: Pre-build the frontend
         run: npm run build -w frontend
 
+      - name: Deploy the data stack
+        working-directory: infra
+        run: npx cdk deploy SpendingTracker-DataAuth --require-approval never
+
+      # Only exists once `ingestDomain` is set in cdk.json context, and has to
+      # go out before the API stack, which reads the parser's ARN for its
+      # dashboard and alarms.
+      - name: Deploy the email ingest stack, if one is configured
+        working-directory: infra
+        run: |
+          if npx cdk list | grep -qx 'SpendingTracker-EmailIngest'; then
+            npx cdk deploy SpendingTracker-EmailIngest --require-approval never
+          else
+            echo 'No ingestDomain in cdk.json context — skipping email ingestion.'
+          fi
+
       # The frontend compiles the Cognito ids into its bundle, so the stacks
       # that own them go out first and their outputs configure the build.
-      - name: Deploy data and API stacks
+      - name: Deploy the API stack
         working-directory: infra
         run: |
           npx cdk deploy SpendingTracker-DataAuth SpendingTracker-Api \

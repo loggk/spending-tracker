@@ -39,6 +39,22 @@ export const batchTransactionsSchema = z.object({
   transactions: z.array(transactionInputSchema).min(1, 'No transactions to import').max(500),
 });
 
+/**
+ * Settings for the ingest address. `forwardFrom` is lowercased because it is
+ * compared against an envelope sender, which mail systems do not preserve case
+ * in reliably.
+ */
+export const ingestAliasSchema = z.object({
+  forwardFrom: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Enter a valid email address')
+    .max(254)
+    .optional(),
+  rotate: z.boolean().optional(),
+});
+
 export const listTransactionsQuerySchema = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
@@ -58,6 +74,7 @@ export const assistantChatSchema = z.object({
 });
 
 export type TransactionInput = z.infer<typeof transactionInputSchema>;
+export type IngestAliasInput = z.infer<typeof ingestAliasSchema>;
 export type CategoryInput = z.infer<typeof categoryInputSchema>;
 export type ListTransactionsQuery = z.infer<typeof listTransactionsQuerySchema>;
 export type AssistantChatInput = z.infer<typeof assistantChatSchema>;

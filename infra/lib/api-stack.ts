@@ -1,4 +1,3 @@
-import * as path from 'node:path';
 import * as cdk from 'aws-cdk-lib';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
@@ -8,18 +7,18 @@ import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
-import * as logs from 'aws-cdk-lib/aws-logs';
+import type * as lambda from 'aws-cdk-lib/aws-lambda';
+import type { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
 import type { Construct } from 'constructs';
+import { type HandlerOverrides, createHandler } from './handler-function';
 import { Monitoring } from './monitoring';
 
 /**
  * Inference profile rather than a bare model id — Bedrock rejects bare ids for
  * current Claude models. Verified available in us-east-1.
  */
-const BEDROCK_MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+export const BEDROCK_MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 /**
  * Named rather than `$default` so the stage prefix API Gateway expects is the
@@ -27,13 +26,19 @@ const BEDROCK_MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
  */
 export const API_STAGE_NAME = 'api';
 
-const HANDLERS_DIR = path.join(import.meta.dirname, '../../backend/src/handlers');
-
 export interface ApiStackProps extends cdk.StackProps {
   table: dynamodb.Table;
   receiptsBucket: s3.Bucket;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
+  /**
+   * Domain receiving alert emails. Absent when email ingestion has not been
+   * configured, in which case the review queue still works and only handing out
+   * an address is unavailable.
+   */
+  ingestDomain?: string | undefined;
+  /** The ingest parser, so the dashboard and alarms cover it too. */
+  ingestFunction?: lambda.IFunction | undefined;
 }
 
 /** The HTTP API and the Lambda functions behind it. */
@@ -149,10 +154,13 @@ export class ApiStack extends cdk.Stack {
 
     const parser = this.addReceipts(props);
 
+    this.addInbox(props);
+
     new Monitoring(this, 'Monitoring', {
       httpApi: this.httpApi,
       functions: this.handlers,
       parser,
+      ingestFunction: props.ingestFunction,
       table: props.table,
       alertEmail: this.node.tryGetContext('alertEmail') as string | undefined,
     });
@@ -233,37 +241,62 @@ export class ApiStack extends cdk.Stack {
     return parser;
   }
 
+  /**
+   * The review queue for transactions read out of alert emails, and the ingest
+   * address that feeds it.
+   *
+   * These routes exist whether or not a receiving domain is configured: the
+   * queue is readable and dismissable regardless, and the handler reports the
+   * feature as unavailable rather than failing obscurely when there is nowhere
+   * for mail to arrive.
+   */
+  private addInbox(props: ApiStackProps): void {
+    const fn = this.createHandler('Inbox', 'inbox.ts', {
+      TABLE_NAME: props.table.tableName,
+      ...(props.ingestDomain !== undefined && { INGEST_DOMAIN: props.ingestDomain }),
+    });
+    props.table.grantReadWriteData(fn);
+
+    const integration = new HttpLambdaIntegration('InboxIntegration', fn);
+
+    this.httpApi.addRoutes({
+      path: '/inbox',
+      methods: [apigwv2.HttpMethod.GET],
+      integration,
+    });
+
+    // The literal path is matched ahead of /inbox/{id}, the same way
+    // /transactions/batch sits beside /transactions/{id}.
+    this.httpApi.addRoutes({
+      path: '/inbox/{id}/confirm',
+      methods: [apigwv2.HttpMethod.POST],
+      integration,
+    });
+
+    this.httpApi.addRoutes({
+      path: '/inbox/{id}',
+      methods: [apigwv2.HttpMethod.DELETE],
+      integration,
+    });
+
+    this.httpApi.addRoutes({
+      path: '/ingest-alias',
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      integration,
+    });
+  }
+
+  /**
+   * Creates a handler and records it so the dashboard can graph it alongside
+   * the others.
+   */
   private createHandler(
     id: string,
     entryFile: string,
     environment: Record<string, string> = {},
-    overrides: { timeout?: cdk.Duration; memorySize?: number } = {},
+    overrides: HandlerOverrides = {},
   ): NodejsFunction {
-    const fn = new NodejsFunction(this, `${id}Fn`, {
-      entry: path.join(HANDLERS_DIR, entryFile),
-      runtime: lambda.Runtime.NODEJS_22_X,
-      architecture: lambda.Architecture.ARM_64,
-      memorySize: overrides.memorySize ?? 512,
-      timeout: overrides.timeout ?? cdk.Duration.seconds(10),
-      bundling: {
-        format: OutputFormat.ESM,
-        minify: true,
-        sourceMap: true,
-        // Everything is bundled rather than assumed present: the Lambda image
-        // ships only some AWS SDK clients, and an externalised-but-absent module
-        // fails at import time instead of at build time.
-        externalModules: [],
-        // The AWS SDK is published as CommonJS and calls `require` for Node
-        // builtins. ESM output has no `require`, so one is created here.
-        banner:
-          "import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);",
-      },
-      environment: { NODE_OPTIONS: '--enable-source-maps', ...environment },
-      logGroup: new logs.LogGroup(this, `${id}Logs`, {
-        retention: logs.RetentionDays.ONE_MONTH,
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-      }),
-    });
+    const fn = createHandler(this, id, entryFile, environment, overrides);
 
     this.handlers[id] = fn;
 

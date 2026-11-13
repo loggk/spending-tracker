@@ -1,4 +1,11 @@
-import type { Category, Receipt, ReceiptLineItem, Transaction } from './types';
+import type {
+  Category,
+  IngestAlias,
+  PendingTransaction,
+  Receipt,
+  ReceiptLineItem,
+  Transaction,
+} from './types';
 
 export interface CreateTransactionRequest {
   date: string;
@@ -67,6 +74,31 @@ export interface AssistantChatRequest {
 export interface AssistantChatResponse {
   reply: string;
   citedTransactions?: AssistantCitedTransaction[];
+}
+
+export interface ListInboxResponse {
+  pending: PendingTransaction[];
+}
+
+/**
+ * A confirmed inbox row. The user can edit every field before accepting it, so
+ * this is the same shape as a hand-entered transaction rather than a reference
+ * back to what was parsed.
+ */
+export type ConfirmPendingRequest = CreateTransactionRequest;
+
+export interface ConfirmPendingResponse {
+  transaction: Transaction;
+}
+
+/** Null when the user has not generated an ingest address yet. */
+export type GetIngestAliasResponse = IngestAlias | null;
+
+export interface UpdateIngestAliasRequest {
+  /** Address permitted to forward alerts in, alongside the issuers themselves. */
+  forwardFrom?: string;
+  /** Issues a new address, invalidating the old one. */
+  rotate?: boolean;
 }
 
 export interface ApiError {

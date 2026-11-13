@@ -33,3 +33,40 @@ export interface Receipt {
   error?: string;
   createdAt: string;
 }
+
+/** Card or bank an alert email came from. */
+export type IngestSource = 'amex' | 'rbc';
+
+/**
+ * Which path read the alert: a per-issuer template, or the model fallback.
+ * Model-derived rows are shown as unverified, because a template match is an
+ * exact structural match while the model is making a judgement.
+ */
+export type IngestParser = 'template' | 'model';
+
+/**
+ * A transaction read out of an alert email, waiting for the user to confirm it.
+ *
+ * `merchantRaw` is what the issuer wrote and is what the UI shows;
+ * `merchantSanitized` is the collapsed form used for deduplication and for
+ * looking up a learned category, and is not meant to be read.
+ */
+export interface PendingTransaction {
+  id: string;
+  date: string;
+  amountCents: number;
+  currency: string;
+  merchantRaw: string;
+  merchantSanitized: string;
+  suggestedCategoryId: string | null;
+  source: IngestSource;
+  parser: IngestParser;
+  createdAt: string;
+}
+
+/** The address alerts are forwarded to, and the sender permitted to use it. */
+export interface IngestAlias {
+  address: string;
+  forwardFrom?: string;
+  createdAt: string;
+}

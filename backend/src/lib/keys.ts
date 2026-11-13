@@ -62,3 +62,34 @@ export function transactionRange(from?: string, to?: string): { start: string; e
     end: `${TRANSACTION_PREFIX}${to ?? HIGH_CHAR}${HIGH_CHAR}`,
   };
 }
+
+export const PENDING_PREFIX = 'PEND#';
+export const MERCHANT_PREFIX = 'MERCH#';
+export const DEDUP_PREFIX = 'DEDUP#';
+
+/** Inbox row awaiting review. Ids come from `createId`, so these sort oldest first. */
+export const pendingSk = (id: string): string => `${PENDING_PREFIX}${id}`;
+
+/** A learned merchant -> category association, keyed by the sanitized merchant. */
+export const merchantSk = (sanitizedMerchant: string): string =>
+  `${MERCHANT_PREFIX}${sanitizedMerchant}`;
+
+/**
+ * Guard against ingesting the same purchase twice. Written conditionally in the
+ * same transaction as the inbox row, which is what collapses an authorization
+ * alert and the later posted-amount alert for one purchase into a single row.
+ */
+export const dedupSk = (date: string, amountCents: number, sanitizedMerchant: string): string =>
+  `${DEDUP_PREFIX}${date}#${amountCents}#${sanitizedMerchant}`;
+
+/**
+ * Ingest aliases live in their own partition rather than under a user, because
+ * the lookup runs the other way: an inbound email knows only the token. Keeping
+ * it out of `USER#` means no secondary index is needed to resolve one.
+ */
+export const ingestAliasPk = (token: string): string => `INGEST#${token}`;
+
+export const INGEST_ALIAS_SK = 'ALIAS';
+
+/** Points a user at their current token, so the UI can show the address in one read. */
+export const USER_ALIAS_SK = 'INGEST#ALIAS';

@@ -1,20 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   Category,
+  ConfirmPendingRequest,
+  ConfirmPendingResponse,
   CreateCategoryRequest,
   CreateReceiptResponse,
   CreateTransactionRequest,
+  GetIngestAliasResponse,
+  IngestAlias,
   ListCategoriesResponse,
+  ListInboxResponse,
   ListTransactionsQuery,
   ListTransactionsResponse,
   Receipt,
   Transaction,
+  UpdateIngestAliasRequest,
 } from '@spending-tracker/shared';
 import { apiFetch } from './api';
 
 const keys = {
   transactions: (query: ListTransactionsQuery = {}) => ['transactions', query] as const,
   categories: ['categories'] as const,
+  inbox: ['inbox'] as const,
+  ingestAlias: ['ingest-alias'] as const,
 };
 
 function toSearch(query: ListTransactionsQuery): string {
@@ -169,3 +177,63 @@ export const useDeleteCategory = () =>
   useCategoryMutation((id: string) =>
     apiFetch<void>(`/categories/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   );
+
+/**
+ * The review queue for transactions read out of alert emails.
+ *
+ * Polled because rows appear without the user doing anything — an alert can
+ * land seconds after a purchase while the page is already open.
+ */
+export function useInbox() {
+  return useQuery({
+    queryKey: keys.inbox,
+    queryFn: () => apiFetch<ListInboxResponse>('/inbox').then((data) => data.pending),
+    refetchInterval: 60_000,
+  });
+}
+
+/** Accepting or dismissing a row changes the queue, and may add a transaction. */
+function useInboxMutation<TVariables, TData>(
+  mutationFn: (variables: TVariables) => Promise<TData>,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: keys.inbox });
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    },
+  });
+}
+
+export const useConfirmPending = () =>
+  useInboxMutation(({ id, ...input }: ConfirmPendingRequest & { id: string }) =>
+    apiFetch<ConfirmPendingResponse>(`/inbox/${encodeURIComponent(id)}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  );
+
+export const useDismissPending = () =>
+  useInboxMutation((id: string) =>
+    apiFetch<void>(`/inbox/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  );
+
+/** Null until the user generates an address, or when the feature is unconfigured. */
+export function useIngestAlias() {
+  return useQuery({
+    queryKey: keys.ingestAlias,
+    queryFn: () => apiFetch<GetIngestAliasResponse>('/ingest-alias'),
+  });
+}
+
+export function useUpdateIngestAlias() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: UpdateIngestAliasRequest) =>
+      apiFetch<IngestAlias>('/ingest-alias', { method: 'POST', body: JSON.stringify(input) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.ingestAlias }),
+  });
+}

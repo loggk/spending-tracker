@@ -16,6 +16,7 @@ const RECEIPT_UPLOAD_ORIGINS = ['http://localhost:5173'];
 export class DataAuthStack extends cdk.Stack {
   readonly table: dynamodb.Table;
   readonly receiptsBucket: s3.Bucket;
+  readonly inboundEmailBucket: s3.Bucket;
   readonly userPool: cognito.UserPool;
   readonly userPoolClient: cognito.UserPoolClient;
 
@@ -28,6 +29,9 @@ export class DataAuthStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      // Only the deduplication markers written by email ingestion set this, so
+      // nothing a user created is ever expired by it.
+      timeToLiveAttribute: 'expiresAt',
     });
 
     this.receiptsBucket = new s3.Bucket(this, 'ReceiptsBucket', {
@@ -44,6 +48,19 @@ export class DataAuthStack extends cdk.Stack {
           maxAge: 3000,
         },
       ],
+    });
+
+    /**
+     * Raw inbound alert emails, written here by the SES receipt rule before the
+     * parser reads them. Kept briefly: the only reason to keep a message after
+     * it has been parsed is to work out why it was parsed wrongly.
+     */
+    this.inboundEmailBucket = new s3.Bucket(this, 'InboundEmailBucket', {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      lifecycleRules: [{ prefix: 'inbound/', expiration: cdk.Duration.days(30) }],
     });
 
     this.userPool = new cognito.UserPool(this, 'UserPool', {
@@ -75,6 +92,9 @@ export class DataAuthStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'TableName', { value: this.table.tableName });
     new cdk.CfnOutput(this, 'ReceiptsBucketName', { value: this.receiptsBucket.bucketName });
+    new cdk.CfnOutput(this, 'InboundEmailBucketName', {
+      value: this.inboundEmailBucket.bucketName,
+    });
     new cdk.CfnOutput(this, 'UserPoolId', { value: this.userPool.userPoolId });
     new cdk.CfnOutput(this, 'UserPoolClientId', {
       value: this.userPoolClient.userPoolClientId,

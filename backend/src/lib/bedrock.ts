@@ -176,3 +176,145 @@ export function normalise(input: unknown, categoryIds: Set<string>): ParsedRecei
     items: parsed,
   };
 }
+
+export interface ParsedAlertEmail {
+  date: string | null;
+  amountCents: number;
+  currency: string;
+  merchant: string;
+  suggestedCategoryId: string | null;
+}
+
+export class AlertParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AlertParseError';
+  }
+}
+
+const RECORD_ALERT_TOOL = {
+  name: 'record_alert',
+  description: 'Record the single transaction described by a bank or card alert email.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      date: {
+        type: ['string', 'null'],
+        description: 'Transaction date as YYYY-MM-DD, or null if the email does not state one.',
+      },
+      amountCents: {
+        type: 'integer',
+        description:
+          'Amount in whole cents, e.g. 499 for $4.99. Negative for a refund, credit or reversal.',
+      },
+      currency: {
+        type: 'string',
+        description: 'Three-letter currency code, e.g. CAD. Use CAD when the email omits it.',
+      },
+      merchant: {
+        type: 'string',
+        description: 'Merchant or payee exactly as the email writes it.',
+      },
+      suggestedCategoryId: {
+        type: ['string', 'null'],
+        description: 'Id of the best-fitting category, or null if none fit.',
+      },
+    },
+    required: ['date', 'amountCents', 'currency', 'merchant', 'suggestedCategoryId'],
+  },
+} as const;
+
+const alertSystemPrompt = (categories: { id: string; name: string }[]): string =>
+  [
+    'You read a single bank or credit card transaction alert email and extract the transaction.',
+    'There is exactly one transaction per email. Record its amount, not a balance or a credit limit.',
+    'Amounts are in whole cents. Use a negative amount for a refund, credit or reversal.',
+    'Assign the id of the category that best fits the merchant, or null when none do.',
+    'Available categories:',
+    ...categories.map((category) => `- ${category.id}: ${category.name}`),
+  ].join('\n');
+
+/**
+ * Fallback for an alert no issuer template matched, usually because the issuer
+ * changed its layout. Reads the already-extracted plain text rather than the raw
+ * MIME, so the model never sees headers or tracking markup.
+ */
+export async function parseAlertEmail(
+  body: string,
+  categories: { id: string; name: string }[],
+): Promise<ParsedAlertEmail> {
+  const response = await client.send(
+    new InvokeModelCommand({
+      modelId: modelId(),
+      contentType: 'application/json',
+      body: JSON.stringify({
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: 1024,
+        system: alertSystemPrompt(categories),
+        tools: [RECORD_ALERT_TOOL],
+        tool_choice: { type: 'tool', name: RECORD_ALERT_TOOL.name },
+        messages: [
+          {
+            role: 'user',
+            content: [{ type: 'text', text: body.slice(0, 20_000) }],
+          },
+        ],
+      }),
+    }),
+  );
+
+  const payload = JSON.parse(new TextDecoder().decode(response.body)) as {
+    content?: ToolUseBlock[];
+  };
+  const toolUse = payload.content?.find(
+    (block) => block.type === 'tool_use' && block.name === RECORD_ALERT_TOOL.name,
+  );
+
+  if (!toolUse?.input) {
+    throw new AlertParseError('The model did not return a transaction');
+  }
+
+  return normaliseAlert(toolUse.input, new Set(categories.map((category) => category.id)));
+}
+
+/**
+ * The tool schema constrains shape but not correctness. An unusable amount or
+ * merchant is a hard failure here rather than a dropped field, because unlike a
+ * receipt there is only one transaction to get right.
+ */
+export function normaliseAlert(input: unknown, categoryIds: Set<string>): ParsedAlertEmail {
+  const raw = input as {
+    date?: unknown;
+    amountCents?: unknown;
+    currency?: unknown;
+    merchant?: unknown;
+    suggestedCategoryId?: unknown;
+  };
+
+  const amountCents = Math.round(Number(raw['amountCents']));
+  const merchant = typeof raw['merchant'] === 'string' ? raw['merchant'].trim() : '';
+
+  if (!Number.isFinite(amountCents) || amountCents === 0) {
+    throw new AlertParseError('No transaction amount could be read from this email');
+  }
+
+  if (merchant === '') {
+    throw new AlertParseError('No merchant could be read from this email');
+  }
+
+  const date = raw['date'];
+  const currency = raw['currency'];
+  const suggested = raw['suggestedCategoryId'];
+
+  return {
+    date: typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null,
+    amountCents,
+    currency:
+      typeof currency === 'string' && /^[A-Za-z]{3}$/.test(currency)
+        ? currency.toUpperCase()
+        : 'CAD',
+    merchant: merchant.slice(0, 200),
+    suggestedCategoryId:
+      typeof suggested === 'string' && categoryIds.has(suggested) ? suggested : null,
+  };
+}

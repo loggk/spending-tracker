@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { Categories } from '@/pages/Categories';
 import { Dashboard } from '@/pages/Dashboard';
 import { ForgotPassword } from '@/pages/ForgotPassword';
+import { Inbox } from '@/pages/Inbox';
 import { Receipts } from '@/pages/Receipts';
 import { SignIn } from '@/pages/SignIn';
 import { SignUp } from '@/pages/SignUp';
@@ -34,6 +35,7 @@ function App() {
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/transactions" element={<Transactions />} />
+                  <Route path="/inbox" element={<Inbox />} />
                   <Route path="/receipts" element={<Receipts />} />
                   <Route path="/categories" element={<Categories />} />
                 </Route>

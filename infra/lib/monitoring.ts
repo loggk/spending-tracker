@@ -14,6 +14,8 @@ export interface MonitoringProps {
   httpApi: apigwv2.HttpApi;
   functions: Record<string, lambda.IFunction>;
   parser: lambda.IFunction;
+  /** Absent when email ingestion has not been configured for this deployment. */
+  ingestFunction?: lambda.IFunction | undefined;
   table: dynamodb.ITable;
   alertEmail?: string | undefined;
 }
@@ -124,6 +126,25 @@ export class Monitoring extends Construct {
           comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
           treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
         }),
+
+      // An alert email that fails to parse is dropped and the user is never
+      // told, because they did not ask for it to arrive. This alarm is the only
+      // thing that notices.
+      ...(props.ingestFunction === undefined
+        ? []
+        : [
+            props.ingestFunction
+              .metricErrors({ statistic: 'Sum', period: PERIOD })
+              .createAlarm(this, 'IngestEmailErrors', {
+                alarmDescription:
+                  'Ingesting an alert email failed; the transaction never reached the inbox.',
+                threshold: 1,
+                evaluationPeriods: 1,
+                comparisonOperator:
+                  cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+              }),
+          ]),
     ];
 
     for (const alarm of alarms) {

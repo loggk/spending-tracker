@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   categorySk,
+  dedupSk,
+  ingestAliasPk,
+  merchantSk,
+  pendingSk,
   parseTransactionId,
   transactionId,
   transactionRange,
@@ -77,5 +81,32 @@ describe('transactionRange', () => {
     const category = categorySk('x');
 
     expect(category >= start && category <= end).toBe(false);
+  });
+});
+
+describe('ingestion keys', () => {
+  it('keeps the inbox, markers and mappings from colliding with transactions', () => {
+    const range = transactionRange();
+    const keys = [
+      pendingSk('01ABC'),
+      dedupSk('2026-11-11', 3860, 'TIM HORTONS'),
+      merchantSk('TIM HORTONS'),
+    ];
+
+    for (const key of keys) {
+      expect(key >= range.start && key <= range.end).toBe(false);
+      expect(key.startsWith('CAT#')).toBe(false);
+    }
+
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('distinguishes a refund from a charge of the same size', () => {
+    expect(dedupSk('2026-11-11', 3860, 'INDIGO')).not.toBe(dedupSk('2026-11-11', -3860, 'INDIGO'));
+  });
+
+  it('puts an alias outside every user partition, so a lookup needs no index', () => {
+    expect(ingestAliasPk('abc123')).not.toBe(userPk('abc123'));
+    expect(ingestAliasPk('abc123').startsWith('USER#')).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createId } from './id';
+import { createId, createToken } from './id';
 
 describe('createId', () => {
   it('produces a fixed-length id', () => {
@@ -30,5 +30,23 @@ describe('createId', () => {
     const now = Date.now();
 
     expect(createId(now).slice(0, 10)).toBe(createId(now).slice(0, 10));
+  });
+});
+
+describe('createToken', () => {
+  it('produces a fixed-length lowercase token', () => {
+    expect(createToken()).toMatch(/^[a-z2-9]{16}$/);
+  });
+
+  it('has no predictable prefix, unlike createId', () => {
+    const prefixes = new Set(Array.from({ length: 50 }, () => createToken().slice(0, 4)));
+
+    expect(prefixes.size).toBeGreaterThan(40);
+  });
+
+  it('omits the letters that get misread', () => {
+    const tokens = Array.from({ length: 200 }, createToken).join('');
+
+    expect(tokens).not.toMatch(/[lo01]/);
   });
 });
