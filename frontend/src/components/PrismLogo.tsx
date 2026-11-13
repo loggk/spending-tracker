@@ -1,0 +1,243 @@
+import type { SVGProps } from 'react';
+import { cn } from '@/lib/utils';
+
+export interface PrismLogoProps extends SVGProps<SVGSVGElement> {
+  className?: string;
+  markOnly?: boolean;
+}
+
+export function PrismLogo({ className, markOnly = false, ...props }: PrismLogoProps) {
+  if (markOnly) {
+    return <PrismMark className={className} {...props} />;
+  }
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="90 395 845 235"
+      fill="none"
+      aria-label="PRISM"
+      role="img"
+      className={cn('h-6 w-auto text-foreground', className)}
+      {...props}
+    >
+      {/* Incoming green ray */}
+      <line
+        x1="103"
+        y1="536"
+        x2="165"
+        y2="510"
+        stroke="#5eb066"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      {/* Dispersed spectral rays */}
+      <polyline
+        points="165,510 266,479 376,503"
+        stroke="#5eb066"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points="165,510 272,491 376,518"
+        stroke="#3595c2"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points="165,510 278,501 376,534"
+        stroke="#e28a4d"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points="165,510 284,512 376,550"
+        stroke="#834993"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Outer triangle */}
+      <polygon
+        points="224,406 104,617 344,617"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinejoin="round"
+      />
+
+      {/* Internal facet wireframe (straight geometric facet lines) */}
+      <polyline
+        points="224,406 175,540 214,556"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="288"
+        y1="521"
+        x2="214"
+        y2="556"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="214"
+        y1="556"
+        x2="104"
+        y2="617"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="214"
+        y1="556"
+        x2="344"
+        y2="617"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* PRISM wordmark */}
+      {/* P */}
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M 434,461 H 485 A 32 35 0 0 1 517,496 A 32 35 0 0 1 485,531 H 448 V 563 H 434 Z M 448,473 H 483 A 19 23 0 0 1 502,496 A 19 23 0 0 1 483,519 H 448 Z"
+      />
+
+      {/* R */}
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M 543,461 H 595 A 32 35 0 0 1 627,496 A 32 35 0 0 1 604,528 L 626,563 H 612 L 590,531 H 557 V 563 H 543 Z M 557,473 H 593 A 19 23 0 0 1 611,496 A 19 23 0 0 1 593,519 H 557 Z"
+      />
+
+      {/* I */}
+      <rect x="656" y="461" width="14" height="102" fill="currentColor" />
+
+      {/* S */}
+      <path
+        fill="currentColor"
+        d="M 762,530 C 758,525 750,520 720,514 C 702,510 699,500 700,486 C 701,471 713,460 735,460 C 755,460 766,464 774,471 L 768,481 C 760,475 750,472 733,472 C 722,472 715,478 715,488 C 715,498 724,502 752,508 C 772,512 778,522 778,536 C 778,552 764,564 734,564 C 715,564 703,559 697,551 L 704,541 C 712,548 723,552 734,552 C 748,552 763,546 763,535 C 763,533 763,531 762,530 Z"
+      />
+
+      {/* M - correctly aligned parallel diagonal strokes */}
+      <path
+        fill="currentColor"
+        d="M 806,461 H 820 L 863.5,532 L 907,461 H 921 V 563 H 907 V 482 L 863.5,551 L 820,482 V 563 H 806 Z"
+      />
+    </svg>
+  );
+}
+
+export function PrismMark({ className, ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="90 395 295 235"
+      fill="none"
+      aria-label="PRISM"
+      role="img"
+      className={cn('h-6 w-auto text-foreground', className)}
+      {...props}
+    >
+      {/* Incoming green ray */}
+      <line
+        x1="103"
+        y1="536"
+        x2="165"
+        y2="510"
+        stroke="#5eb066"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      {/* Dispersed spectral rays */}
+      <polyline
+        points="165,510 266,479 376,503"
+        stroke="#5eb066"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points="165,510 272,491 376,518"
+        stroke="#3595c2"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points="165,510 278,501 376,534"
+        stroke="#e28a4d"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points="165,510 284,512 376,550"
+        stroke="#834993"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Outer triangle */}
+      <polygon
+        points="224,406 104,617 344,617"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinejoin="round"
+      />
+
+      {/* Internal facet wireframe (straight geometric facet lines) */}
+      <polyline
+        points="224,406 175,540 214,556"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="288"
+        y1="521"
+        x2="214"
+        y2="556"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="214"
+        y1="556"
+        x2="104"
+        y2="617"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="214"
+        y1="556"
+        x2="344"
+        y2="617"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { confirmSignUp, signIn, signUp } from 'aws-amplify/auth';
 import { useAuth } from '@/auth/auth-context';
+import { PrismLogo } from '@/components/PrismLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -59,13 +60,18 @@ export function SignUp() {
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>{step === 'details' ? 'Create account' : 'Check your email'}</CardTitle>
-          <CardDescription>
-            {step === 'details'
-              ? 'Start tracking your spending.'
-              : `We sent a verification code to ${email}.`}
-          </CardDescription>
+        <CardHeader className="space-y-3">
+          <div className="flex justify-center pb-1">
+            <PrismLogo className="h-8 w-auto" />
+          </div>
+          <div className="space-y-1">
+            <CardTitle>{step === 'details' ? 'Create account' : 'Check your email'}</CardTitle>
+            <CardDescription>
+              {step === 'details'
+                ? 'Start tracking your spending.'
+                : `We sent a verification code to ${email}.`}
+            </CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           {step === 'details' ? (

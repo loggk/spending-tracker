@@ -4,6 +4,7 @@ import { signOut } from 'aws-amplify/auth';
 import { SparklesIcon } from 'lucide-react';
 import { useAuth } from '@/auth/auth-context';
 import { AssistantDrawer } from '@/components/AssistantDrawer';
+import { PrismLogo } from '@/components/PrismLogo';
 import { SegmentedControl, type SegmentOption } from '@/components/SegmentedControl';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -45,7 +46,13 @@ export function AppLayout() {
     <div className="min-h-screen">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-5 gap-y-2.5 px-6 py-3">
-          <span className="text-base font-semibold tracking-[-0.025em]">Spending Tracker</span>
+          <NavLink
+            to="/"
+            className="flex items-center transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+            aria-label="PRISM Home"
+          >
+            <PrismLogo className="h-6 w-auto" />
+          </NavLink>
 
           {/* Wide screens fit the links beside the brand; narrow ones get the row below. */}
           <Nav links={LINKS} current={current} className="hidden sm:inline-flex" />

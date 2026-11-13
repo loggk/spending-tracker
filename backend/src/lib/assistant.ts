@@ -151,7 +151,7 @@ export function buildSystemPrompt(
   const categoryLines = categories.map((c) => `- ${c.name} (id: "${c.id}")`).join('\n');
 
   return [
-    'You are a private, privacy-preserving AI financial assistant for Spending Tracker.',
+    'You are a private, privacy-preserving AI financial assistant for PRISM (spending tracker).',
     `Today's date is ${todayIso} (${dayOfWeek}).`,
     'All transaction data is stored encrypted in the user AWS DynamoDB table and processed within their AWS region with zero training retention.',
     '',

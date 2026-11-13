@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signIn } from 'aws-amplify/auth';
 import { useAuth } from '@/auth/auth-context';
+import { PrismLogo } from '@/components/PrismLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,9 +35,14 @@ export function SignIn() {
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Sign in</CardTitle>
-          <CardDescription>Welcome back to Spending Tracker.</CardDescription>
+        <CardHeader className="space-y-3">
+          <div className="flex justify-center pb-1">
+            <PrismLogo className="h-8 w-auto" />
+          </div>
+          <div className="space-y-1">
+            <CardTitle>Sign in</CardTitle>
+            <CardDescription>Welcome back to PRISM.</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-4">

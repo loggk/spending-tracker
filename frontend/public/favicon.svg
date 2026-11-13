@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 395 295 235" fill="none">
+  <style>
+    .prism-frame { stroke: #0f172a; }
+    @media (prefers-color-scheme: dark) {
+      .prism-frame { stroke: #ffffff; }
+    }
+  </style>
+  <!-- Incoming green ray -->
+  <line x1="103" y1="536" x2="165" y2="510" stroke="#5eb066" stroke-width="3" stroke-linecap="round" />
+  <!-- Dispersed spectral rays -->
+  <polyline points="165,510 266,479 376,503" stroke="#5eb066" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <polyline points="165,510 272,491 376,518" stroke="#3595c2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <polyline points="165,510 278,501 376,534" stroke="#e28a4d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <polyline points="165,510 284,512 376,550" stroke="#834993" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Outer triangle -->
+  <polygon points="224,406 104,617 344,617" class="prism-frame" stroke-width="8" stroke-linejoin="round" />
+
+  <!-- Internal facet wireframe -->
+  <polyline points="224,406 175,540 214,556" class="prism-frame" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <line x1="288" y1="521" x2="214" y2="556" class="prism-frame" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <line x1="214" y1="556" x2="104" y2="617" class="prism-frame" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <line x1="214" y1="556" x2="344" y2="617" class="prism-frame" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
